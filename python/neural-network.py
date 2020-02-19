@@ -1,5 +1,7 @@
 import math
 import numpy as np
+from node import node
+from weight import weight
 
 class neural_network:
     def __init__(self):
@@ -30,8 +32,10 @@ class neural_network:
             return np.tanh(input_values)
             
 
-arr = 200 * np.random.random_sample((10, 1)) - 100
-
-nn = neural_network()
-arr = nn.activation_function(arr, name='Tanh')
-print(arr)
+node1 = node("a", "b")
+node2 = node("a", "b")
+weight1 = weight(node1, node2, 1.0)
+#arr = 200 * np.random.random_sample((10, 1)) - 100
+#nn = neural_network()
+#arr = nn.activation_function(arr, name='Tanh')
+#print(arr)
