@@ -1,0 +1,48 @@
+Purpose of hidden layers:
+	Each layer can apply any function you want to the previous layer (usually a linear transformation followed by a squashing nonlinearity).
+	The hidden layers' job is to transform the inputs into something that the output layer can use.
+	The output layer transforms the hidden layer activations into whatever scale you wanted your output to be on.
+
+	Multiple layers add multiple functions, more complex.
+	Link: https://stats.stackexchange.com/questions/63152/what-does-the-hidden-layer-in-a-neural-network-compute
+	
+	One hidden layer is often enough. Rarely does performance increase for a second or third.
+	Good rule of thumb is 1 hidden layer, neurons equal to average of input and output layer.
+	Is each node a different tool? (i.e. one node for edges, one node for whatever, etc.)
+	
+Output:
+	Machine mode or regressor mode
+		Machine Mode returns a class label (one node, unless softmax, then one per class label)
+		Regressor mode returns a value (one node)
+	
+Regularization:
+	https://www.analyticsvidhya.com/blog/2018/04/fundamentals-deep-learning-regularization-techniques/
+
+Look into pruning and other techniques
+
+
+NN has I/O layers, and n hidden layers
+# nodes = len(i) + len(o) + sum(len(each hidden layer))
+Weight between each node.
+
+Node object with associated weight object
+Node class vars:
+	Name (I1, I2, B1, H12, H22, O1)
+	Node #(1-# nodes)
+	Layer (I, H1, H2, H..., O)
+	Input function (ability for different tools from each node).
+	List of weights
+
+Weight class vars:
+	From-node
+	To-node
+	Weight value
+
+1-4, 2-4, B1-4, 1-5, 2-5, B1-5, 4,6, B2-6
+1	4	6
+2	5
+B1	B2
+
+
+Links:
+https://stats.stackexchange.com/questions/181/how-to-choose-the-number-of-hidden-layers-and-nodes-in-a-feedforward-neural-netw
