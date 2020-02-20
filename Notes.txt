@@ -9,7 +9,10 @@ Purpose of hidden layers:
 	One hidden layer is often enough. Rarely does performance increase for a second or third.
 	Good rule of thumb is 1 hidden layer, neurons equal to average of input and output layer.
 	Is each node a different tool? (i.e. one node for edges, one node for whatever, etc.)
+		
 	
+	From https://towardsdatascience.com/exploring-activation-functions-for-neural-networks-73498da59b02:
+		784 input neurons, one for each pixel.
 Output:
 	Machine mode or regressor mode
 		Machine Mode returns a class label (one node, unless softmax, then one per class label)
@@ -19,18 +22,28 @@ Regularization:
 	https://www.analyticsvidhya.com/blog/2018/04/fundamentals-deep-learning-regularization-techniques/
 
 Look into pruning and other techniques
-
+Optimizations:
+	Threading
+	Matrix multiplications
 
 NN has I/O layers, and n hidden layers
 # nodes = len(i) + len(o) + sum(len(each hidden layer))
 Weight between each node.
 
+NN constructor - 
+	# input nodes, **kwargs (H1, 5, H2, 3...), #output nodes
+	OR
+	User creates the nodes themselves and passes them in?
+	
+	How to get activation/squash functions for each node?
+		# input nodes, **kwargs (H1.1, "Activation/Squash", H1.2, "Activation/?"
+	
 Node object with associated weight object
 Node class vars:
 	Name (I1, I2, B1, H12, H22, O1)
 	Node #(1-# nodes)
 	Layer (I, H1, H2, H..., O)
-	Input function (ability for different tools from each node).
+	Activation function (ability for different tools from each node).
 	List of weights
 
 Weight class vars:
@@ -46,3 +59,5 @@ B1	B2
 
 Links:
 https://stats.stackexchange.com/questions/181/how-to-choose-the-number-of-hidden-layers-and-nodes-in-a-feedforward-neural-netw
+capsule networks & squashing: https://medium.com/ai%C2%B3-theory-practice-business/understanding-hintons-capsule-networks-part-i-intuition-b4b559d1159b
+							  https://www.sciencedirect.com/topics/computer-science/squashing-function
