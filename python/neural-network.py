@@ -10,13 +10,13 @@ class neural_network:
     Instance variables
     ------------------
     nodes : (self.nodes)
-        np.array, matrix of all nodes
+        np.array, matrix of all nodes. Split into sub np.arrays for each layer
     weights : (self.weights)
         np.array, matrix of all weights
     Learning rate : (self.alpha)
         float, learning rate
 
-    Constructor
+    Constructor parameters
     -----------
     input nodes : in_size
         int, number of input nodes
@@ -29,6 +29,7 @@ class neural_network:
     Hidden layer vars : **hl_s_af
         strs, activation function for each hidden layer (ignored if h_l_count is None)
 
+    
     Global variables
     ----------------
     Function keywords : funcs
@@ -49,7 +50,9 @@ class neural_network:
         #Verify hidden layer elements
         assert len(hl_s_af) == 2, "Hidden layer vars must have 2 items: Sizes and activation functions"
         hl_vals = [value for value in hl_s_af.values()]
-
+        assert len(hl_vals) == 2, "Hidden layer vars must have 2 items: Sizes and activation functions"
+        assert len(hl_vals[0]) == len(hl_vals[1]), "Length of each item for hidden layer vars must be equal"
+        
         #Check each size
         for size in hl_vals[0]:
             try:
@@ -57,12 +60,23 @@ class neural_network:
                 assert size >= 1, "Hidden layer size must be int greater than 0"
             except ValueError:
                 raise ValueError('Size must be of type int')
+            
         #Check each function
         for a_f in hl_vals[1]:
             assert a_f is None or a_f in neural_network.funcs, "Function must be one of the following: " + ", ".join(neural_network.funcs)
 
+
+        #Create temp np arrays for holding in an overarching np array
+        in_layer = np.array([node(name="i" + str(i), layer="input") for i in range(in_size)])
+        out_layer = np.array([node(name="o" + str(i), layer="output") for i in range(out_size)])
+        #i is layer, j is node
+        print(len(hl_vals[0]))
+        hidden_layers = np.array([np.array([node(name="h"+str(i)+"."+str(j),
+                                                layer="h"+str(i),
+                                                a_f=hl_vals[1][i])
+                                           for j in range(hl_vals[0][i])])
+                                 for i in range(len(hl_vals[0]))])
         
-    
     def activation_function(self, input_values, name='sigmoid'):
         """
         Runs value through the activation function for a neuron.
@@ -87,8 +101,8 @@ class neural_network:
         elif name == 'tanh':
             return np.tanh(input_values)
             
-hidden_layer_vals = {"Sizes" : ("5", "10"), "Functions" : ("softmax", "tanh")}
-nn = neural_network(1, 1, **hidden_layer_vals)
+hidden_layer_vals = {"Sizes" : (5, 10), "Functions" : ("softmax", "tanh")}
+nn = neural_network(4, 6, **hidden_layer_vals)
 #node1 = node("a", "b")
 #node2 = node("a", "b")
 #weight1 = weight(node1, node2, 1.0)
