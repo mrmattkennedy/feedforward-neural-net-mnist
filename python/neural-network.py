@@ -52,6 +52,7 @@ class neural_network:
         hl_vals = [value for value in hl_s_af.values()]
         assert len(hl_vals) == 2, "Hidden layer vars must have 2 items: Sizes and activation functions"
         assert len(hl_vals[0]) == len(hl_vals[1]), "Length of each item for hidden layer vars must be equal"
+
         
         #Check each size
         for size in hl_vals[0]:
@@ -66,16 +67,17 @@ class neural_network:
             assert a_f is None or a_f in neural_network.funcs, "Function must be one of the following: " + ", ".join(neural_network.funcs)
 
 
-        #Create temp np arrays for holding in an overarching np array
-        in_layer = np.array([node(name="i" + str(i), layer="input") for i in range(in_size)])
-        out_layer = np.array([node(name="o" + str(i), layer="output") for i in range(out_size)])
-        #i is layer, j is node
-        print(len(hl_vals[0]))
-        hidden_layers = np.array([np.array([node(name="h"+str(i)+"."+str(j),
+        #Create np arrays for each layer
+        self.in_layer = np.array([node(name="i" + str(i), layer="input") for i in range(in_size)])
+        self.out_layer = np.array([node(name="o" + str(i), layer="output") for i in range(out_size)])
+        self.hidden_layers = np.array([np.array([node(name="h"+str(i)+"."+str(j),
                                                 layer="h"+str(i),
                                                 a_f=hl_vals[1][i])
                                            for j in range(hl_vals[0][i])])
                                  for i in range(len(hl_vals[0]))])
+
+        #Create np array for every weight
+        i_h1 = np.array([(np.array([weight(f_n=self.in_layer[i], t_n=self.h_l[j],
         
     def activation_function(self, input_values, name='sigmoid'):
         """
@@ -100,7 +102,7 @@ class neural_network:
             return np.array([1 / (1 + math.exp(-x)) for x in input_values])
         elif name == 'tanh':
             return np.tanh(input_values)
-            
+     def init_weight_value(self       
 hidden_layer_vals = {"Sizes" : (5, 10), "Functions" : ("softmax", "tanh")}
 nn = neural_network(4, 6, **hidden_layer_vals)
 #node1 = node("a", "b")

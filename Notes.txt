@@ -57,6 +57,38 @@ Weight class vars:
 B1	B2
 
 
+
+
+Main aspects
+	Feed Forward
+		Get the input data to start, and the weights.
+		Create output list. This will have (# layers - 1 for input) nested arrays. Each nested array will be of shape (# inputs, # nodes in that layer).
+			Ex: hidden layer is 3 nodes, 210 inputs = shape is 210,3. Output is 1 node, output list shape is 210,1.
+		Loop through each weight in W. This will give an x,y array, where x is the # nodes in the previous layer, y is the # nodes in teh current layer.
+			Ex: input is 2 nodes, hidden is 3, weights for that part will be shape 2x3. Hidden to output (1 node in output) is 3x1.
+			
+			While looping, do dot product of the entire input list (term for this? Feeding ALL inputs forward in this case), with that sublist w for those weights. This gives outputs for that layer.
+			Run the new outputs through the activation function, and save those values to the output list. Set these new outputs to the new inputs as well for the next iteration.
+			
+	Back Propagation
+		Need the prior outputs of each layer (the value after running through activation function), as well as the weights, and the results (training or test, whichever working on).
+		Get the error for the output layer first - shape the output results the same as the outputs from feeding forward previously, and subtract. (results - output). This is the error for that layer
+		Next, get the difference by multiplying the error by the derivative of the prior outputs. (delta = error * derivative(outputs)). This difference is the gradient for that layer.
+		Last hidden layer (next layer down), that layer error = the dot product of the transposed weights for that layer by the delta for the output layer (prior layer).
+		This is the cost function - diffefrence between network's output and the correct answers. This gives us how much each weight needs to adjust (roughly).
+		Shape of delta: x,y where x is number of inputs and y is the number of nodes. 210 inputs x 1 nodes = 210,1
+		
+	Update weights:
+		Need the inputs for each layer starting point of the weights (input and hidden), as well as the deltas for the output layers (l1_delta, l2_delta), the weights, and the learning rate (alpha).
+		Start at the end - weights between output layer and hidden layer = the weights + (learning rate * (the inputs transposed dot product multiplied by the output layer delta))
+
+
+
+
+
+
+
+
 Links:
 https://stats.stackexchange.com/questions/181/how-to-choose-the-number-of-hidden-layers-and-nodes-in-a-feedforward-neural-netw
 capsule networks & squashing: https://medium.com/ai%C2%B3-theory-practice-business/understanding-hintons-capsule-networks-part-i-intuition-b4b559d1159b
