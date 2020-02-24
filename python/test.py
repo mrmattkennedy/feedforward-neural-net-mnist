@@ -36,7 +36,7 @@ def feed_forward(X, weights):
         a = sigmoid(z)
         #Append new input to return
         out.append(a)
-        
+
     return out
 
 """
@@ -46,7 +46,7 @@ weights - current weight values
 y - correct responses
 """
 def back_propagation(l1, l2, weights, y):
-    #Reshape y 
+    #Reshape y
     l2_error = y.reshape(-1, 1) - l2
     l2_delta = l2_error * sigmoid_prime(l2)
     l1_error = l2_delta.dot(weights[1].T)
@@ -73,8 +73,13 @@ np.random.seed(0)
 
 coord, cl = make_moons(300, noise=0.05)
 X, Xt, y, yt = train_test_split(coord, cl,
-                                test_size=0.30, 
+                                test_size=0.30,
                                 random_state=0)
+print(X.shape)
+print(Xt.shape)
+print(y.shape)
+print(yt.shape)
+print(yt)
 """
 X - input training data set
 Xt - input test data set
@@ -94,23 +99,23 @@ for j in range(30000 + 1):
 
     # First, feed forward through the hidden layer
     l1, l2 = feed_forward(X, weights)
-    
+
     # Then, error back propagation from output to input
     l2_error, l1_delta, l2_delta = back_propagation(l1, l2, weights, y)
-    
+
     # Finally, updating the weights of the network
     weights = update_weights(X, l1, l1_delta, l2_delta, weights, alpha=0.05)
-    
+
     # From time to time, reporting the results
     if (j % 5000) == 0:
         train_error = np.mean(np.abs(l2_error))
         print('Epoch {:5}'.format(j), end=' - ')
         print('error: {:0.4f}'.format(train_error), end= ' - ')
-        
+
         train_accuracy = accuracy(true_label=y, predicted=(l2 > 0.5))
         test_preds = predict(Xt, weights)
         test_accuracy = accuracy(true_label=yt, predicted=test_preds)
-        
+
         print('acc: train {:0.3f}'.format(train_accuracy), end= ' | ')
         print('test {:0.3f}'.format(test_accuracy))
 """

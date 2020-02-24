@@ -78,6 +78,16 @@ Main aspects
 		This is the cost function - diffefrence between network's output and the correct answers. This gives us how much each weight needs to adjust (roughly).
 		Shape of delta: x,y where x is number of inputs and y is the number of nodes. 210 inputs x 1 nodes = 210,1
 		
+		From 3Blue1Brown video-cost of 1 training example - take output of network, what you wanted, add squares of differences between each componenet.
+			Digit recognition example:
+			Output 0-9 each have probability (with softmax), one has most probability. What you wanted was one digit to have 1.00 probability, with others having 0.00.
+			Subtract the difference from each output node for what it was - what you wanted it to be, square root, and add.
+				Do for every example, gives you total cost of network.
+				One sample is the loss. Every example is cost.
+			
+			Backpropagation is showing how each input node would like to influence the previous layer (+/- some amount), and averaging them for each weight. 
+			This is proportional to the negative gradient descent
+			Cost function is the average of the loss function for every training sample in the whole set
 	Update weights:
 		Need the inputs for each layer starting point of the weights (input and hidden), as well as the deltas for the output layers (l1_delta, l2_delta), the weights, and the learning rate (alpha).
 		Start at the end - weights between output layer and hidden layer = the weights + (learning rate * (the inputs transposed dot product multiplied by the output layer delta))
