@@ -111,7 +111,7 @@ y - output training data set correct responses
 yt - output test data set correct responses
 """
 weights = create_architecture(X.shape[1], 3, 1)
-#print(weights)
+print(type(weights))
 l1, l2 = feed_forward(X, weights)
 l2_error, l1_delta, l2_delta = back_propagation(l1, l2, weights, y)
 test = [[1, 2, 3], [4, 5, 6]]
