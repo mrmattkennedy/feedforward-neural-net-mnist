@@ -54,7 +54,14 @@ def back_propagation(l1, l2, weights, y):
     return l2_error, l1_delta, l2_delta
 
 def update_weights(X, l1, l1_delta, l2_delta, weights, alpha=1.0):
-    #Learning rate * sum of all costs * inputs for each node
+    """
+    Learning rate * sum of all costs * inputs for each node
+    L1 is the output of the last weight
+    Shape is 210 by 3, # inputs x # nodes
+    Transpose is inputs by weights
+    Delta is the cost x the derivative to get the gradient
+    Transpose is sum of all inputs for that node. 
+    """
     weights[1] = weights[1] + (alpha * l1.T.dot(l2_delta))
     weights[0] = weights[0] + (alpha * X.T.dot(l1_delta))
     return weights
@@ -92,7 +99,8 @@ l1, l2 = feed_forward(X, weights)
 l2_error, l1_delta, l2_delta = back_propagation(l1, l2, weights, y)
 test = [[1, 2, 3], [4, 5, 6]]
 test = np.array(test)
-print(l1.T.shape)
+print(l1.shape)
+print(l2.shape)
 print(l2_delta.shape)
 """
 for j in range(30000 + 1):
