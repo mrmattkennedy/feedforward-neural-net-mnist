@@ -47,8 +47,8 @@ y - correct responses
 """
 def back_propagation(l1, l2, weights, y):
     #Reshape y
-    l2_error = y.reshape(-1, 1) - l2
-    l2_delta = l2_error * sigmoid_prime(l2)
+    l2_error = y.reshape(-1, 1) - l2 #Get the cost, or error.
+    l2_delta = l2_error * sigmoid_prime(l2) #Cost times derivative is gradient
     l1_error = l2_delta.dot(weights[1].T)
     l1_delta = l1_error * sigmoid_prime(l1)
     return l2_error, l1_delta, l2_delta
@@ -60,7 +60,24 @@ def update_weights(X, l1, l1_delta, l2_delta, weights, alpha=1.0):
     Shape is 210 by 3, # inputs x # nodes
     Transpose is inputs by weights
     Delta is the cost x the derivative to get the gradient
-    Transpose is sum of all inputs for that node. 
+    Transpose is sum of all inputs for that node.
+
+    l2 delta shape is 210x1. l1 shape is 210x3, T is 3x210.
+    3x210 dot prod with 210x1 gives 3x1.
+    210x1 is the sum of how all the outputs (just 1) want to change the weights.
+    3x210 is every node's inputs from prior layer (hidden for this case).
+    Gradient times the inputs gives how each node was originally affecting output
+
+    Gradient is saying "for each input, this is how I want the prior layer to change"
+    For updating weight we take that gradient value (1 per input in this case)
+    and multiply by the input of each node on each input (3 nodes got 210 inputs).
+    3 rows of 210: We're seeing how each inputs affected the output, and multiplying
+    by their matching loss.
+    
+    xi = input i, ci = loss of input i
+    alpha * sum(x1c1 + x2c2 +...+ xici).
+    Sum how each input affected times how we need it to change, get the change we want.
+    Add to weight.
     """
     weights[1] = weights[1] + (alpha * l1.T.dot(l2_delta))
     weights[0] = weights[0] + (alpha * X.T.dot(l1_delta))
@@ -101,6 +118,7 @@ test = [[1, 2, 3], [4, 5, 6]]
 test = np.array(test)
 print(l1.shape)
 print(l2.shape)
+print(l1_delta.shape)
 print(l2_delta.shape)
 """
 for j in range(30000 + 1):
