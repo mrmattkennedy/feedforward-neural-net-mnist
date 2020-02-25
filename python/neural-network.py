@@ -5,6 +5,9 @@ import traceback
 import numpy as np
 from sklearn.datasets import make_moons
 from sklearn.model_selection import train_test_split
+import warnings
+warnings.filterwarnings("error")
+
 
 class neural_network:
     """
@@ -46,7 +49,7 @@ class neural_network:
 
     
     def __init__(self, in_size, out_size,
-                 alpha=0.05, epochs=30000
+                 alpha=0.05, epochs=30000, threshold=0.5,
                  out_func=None, hl_sizes=None, hl_functions=None):
         
         #Verify sizes are numbers above 0
@@ -102,6 +105,7 @@ class neural_network:
         #Set hyperparameters
         self.alpha = alpha
         self.epochs = epochs
+        self.threshold = threshold
         
         #Create list of activation functions
         self.a_f = list()
@@ -118,13 +122,38 @@ class neural_network:
             self.create_architecture(self.in_size, self.out_size)
 
 
-    def train(self, train_input, train_target, test_input, test_target)
+    def train(self, train_input, train_target, test_input, test_target):
         self.train_input = train_input
         self.train_target = train_target
         self.test_input = test_input
         self.test_target = test_target
 
-        
+        for j in range(self.epochs + 1):
+
+            # First, feed forward through the hidden layer
+            self.feed_forward(self.train_input)
+
+            # Then, error back propagation from output to input
+            self.back_propagation()
+
+            # Finally, updating the weights of the network
+            self.update_weights()
+
+            # From time to time, reporting the results
+            if (j % 5000) == 0:
+                train_error = np.mean(np.abs(self.output_error))
+                print('Epoch {:5}'.format(j), end=' - ')
+                print('error: {:0.4f}'.format(train_error), end= ' - ')
+
+                train_accuracy = self.accuracy(target=self.train_target, predictions=(self.outputs[-1] > self.threshold))
+                test_preds = self.predict(self.test_input)
+                test_accuracy = self.accuracy(target=self.test_target, predictions=test_preds)
+
+                print('acc: train {:0.3f}'.format(train_accuracy), end= ' | ')
+                print('test {:0.3f}'.format(test_accuracy))
+
+
+                
     def init_weights(self, inp, out):
         #randn creates random element, divide by squareroot of inp for randomness
         return np.random.randn(inp, out) / np.sqrt(inp)
@@ -168,27 +197,28 @@ class neural_network:
 
 
         
-    def feed_forward(self):
+    def feed_forward(self, inputs):
         #Create copy of test data
-        a = self.train_input.copy()
+        a = inputs.copy()
         #Empty return list
         out = list()
+        #get activation function range
+        a_f_range = len(self.weights) - len(self.a_f)
         for W in range(len(self.weights)):
             #Dot product of input value and weight
             z = np.dot(a, self.weights[W])
-
+            #pdb.set_trace()
             #Check if there is an activation function for this layer
-            if len(self.a_f) > 0 and W - len(self.a_f) >= 0 and self.a_f[W-len(self.a_f)]:
+            if len(self.a_f) > 0 and W >= a_f_range and self.a_f[W-len(self.a_f)]:
                 #Input is now equal to activation of output
-                a = activation_function(self, z, self.a_f[W-len(self.a_f)])
+                a = self.activation_func(z, self.a_f[W-len(self.a_f)])
             else:
                 a = z
+            
             #Append new input to return
             out.append(a)
 
         self.outputs = out
-
-
     
     def activation_func(self, input_values, name='sigmoid'):
         """
@@ -235,19 +265,23 @@ class neural_network:
         prior_delta = output_delta
         self.deltas.append(output_delta)
 
-        for layer in range(len(self.outputs) - 2, -1, -1):
-            layer_error = prior_delta.dot(self.weights[layer + 1].T)
-            layer_delta = layer_error * self.activation_func_prime(self.outputs[layer])
-            prior_delta = layer_delta
-            self.deltas.append(layer_delta)
-
+        try:
+            for layer in range(len(self.outputs) - 2, -1, -1):
+                layer_error = prior_delta.dot(self.weights[layer + 1].T)
+                layer_delta = layer_error * self.activation_func_prime(self.outputs[layer])
+                #pdb.set_trace()
+                prior_delta = layer_delta
+                self.deltas.append(layer_delta)
+        except RuntimeWarning:
+            extype, value, tb = sys.exc_info()
+            traceback.print_exc()
+            pdb.post_mortem(tb)
         #Put them in order
         self.deltas.reverse()
 
 
         
     def update_weights(self):
-        
         for layer in range(len(self.weights)-1, 0, -1):
             self.weights[layer] = self.weights[layer] + (self.alpha * self.outputs[layer-1].T.dot(self.deltas[layer]))
             
@@ -255,15 +289,16 @@ class neural_network:
 
 
 
-    def accuracy(self):
-        correct_preds = np.ravel(predicted)==true_label
-        return np.sum(correct_preds) / len(true_label)
+    def accuracy(self, target, predictions):
+        #Get the correct predictions, then compare to target.)
+        correct_preds = np.ravel(predictions)==target
+        return np.sum(correct_preds) / len(target)
 
 
 
-    def predict(self):
-        _, l2 = feed_forward(X, weights)
-        preds = np.ravel((l2 > 0.5).astype(int))
+    def predict(self, inputs):
+        self.feed_forward(inputs)
+        preds = np.ravel(((self.outputs[-1]>self.threshold).astype(int)))
         return preds
 
 
@@ -274,5 +309,8 @@ X, Xt, y, yt = train_test_split(coord, cl,
                                 test_size=0.30,
                                 random_state=0)
 
-nn = neural_network(2, 5, hl_sizes=(2, 5))
+print(y.shape)
+nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=3, hl_functions='sigmoid')
 nn.train(train_input=X, train_target=y, test_input=Xt, test_target=yt)
+#nn.feed_forward(X)
+#nn.back_propagation()

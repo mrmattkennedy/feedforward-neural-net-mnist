@@ -88,7 +88,17 @@ Main aspects
 			Backpropagation is showing how each input node would like to influence the previous layer (+/- some amount), and averaging them for each weight. 
 			This is proportional to the negative gradient descent
 			Cost function is the average of the loss function for every training sample in the whole set
-			
+		
+		
+		Gradient is saying "for each input, this is how I want the prior layer to change".		
+		For updating weight we take that gradient value (1 per input in this case) and multiply by the input of each node on each input (3 nodes got 210 inputs).
+		3 rows of 210: We're seeing how each inputs affected the output, and multiplying by their matching loss.
+		
+		xi = input i, ci = loss of input i
+		alpha * sum(x1c1 + x2c2 +...+ xici).
+		Sum how each input affected times how we need it to change, get the change we want.
+		Add to weight.
+		
 	Update weights:
 		Need the inputs for each layer starting point of the weights (input and hidden), as well as the deltas for the output layers (l1_delta, l2_delta), the weights, and the learning rate (alpha).
 		Start at the end - weights between output layer and hidden layer = the weights + (learning rate * (the inputs transposed dot product multiplied by the output layer delta))
@@ -97,7 +107,9 @@ Main aspects
 
 
 
-
+	Accuracy
+	Loss
+		Need to find a way to get user input on correct predictions.
 
 
 Links:
