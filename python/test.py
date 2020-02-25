@@ -120,6 +120,7 @@ print(l1.shape)
 print(l2.shape)
 print(l1_delta.shape)
 print(l2_delta.shape)
+print(X)
 """
 for j in range(30000 + 1):
 
