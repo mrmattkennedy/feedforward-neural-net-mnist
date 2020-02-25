@@ -1,4 +1,7 @@
+import pdb
+import sys
 import math
+import traceback
 import numpy as np
 from sklearn.datasets import make_moons
 from sklearn.model_selection import train_test_split
@@ -43,7 +46,7 @@ class neural_network:
 
     
     def __init__(self, in_size, out_size,
-                 train_input, train_target, test_input, test_target,
+                 alpha=0.05, epochs=30000
                  out_func=None, hl_sizes=None, hl_functions=None):
         
         #Verify sizes are numbers above 0
@@ -96,11 +99,9 @@ class neural_network:
         self.in_size = in_size
         self.out_size = out_size
 
-        #Get test sets
-        self.train_input = train_input
-        self.train_target = train_target
-        self.test_input = test_input
-        self.test_target = test_target
+        #Set hyperparameters
+        self.alpha = alpha
+        self.epochs = epochs
         
         #Create list of activation functions
         self.a_f = list()
@@ -117,12 +118,18 @@ class neural_network:
             self.create_architecture(self.in_size, self.out_size)
 
 
+    def train(self, train_input, train_target, test_input, test_target)
+        self.train_input = train_input
+        self.train_target = train_target
+        self.test_input = test_input
+        self.test_target = test_target
 
+        
     def init_weights(self, inp, out):
         #randn creates random element, divide by squareroot of inp for randomness
         return np.random.randn(inp, out) / np.sqrt(inp)
 
-
+    
     
     def create_architecture(self, in_layer, out_layer, hidden_layers=None, random_seed=0):
         """
@@ -160,11 +167,10 @@ class neural_network:
         self.weights = [self.init_weights(inp, out) for inp, out in arch]
 
 
-    #def train(self):
         
-    def feed_forward(self, inputs):
+    def feed_forward(self):
         #Create copy of test data
-        a = inputs.copy()
+        a = self.train_input.copy()
         #Empty return list
         out = list()
         for W in range(len(self.weights)):
@@ -180,7 +186,7 @@ class neural_network:
             #Append new input to return
             out.append(a)
 
-        self.ouputs = out
+        self.outputs = out
 
 
     
@@ -213,15 +219,53 @@ class neural_network:
     def activation_func_prime(self, input_values, name='sigmoid'):
         if name == 'sigmoid':
             return input_values * (1 - input_values)
+
+
     
     def back_propagation(self):
-        #Reshape y
-        output_error = self.train_target.reshape(-1, 1) - self.outputs[len(self.outputs)-1]
-        output_delta - output_error * activation_func_prime(self.outputs[len(self.outputs)-1])
-        l2_delta = l2_error * sigmoid_prime(l2) #Cost times derivative is gradient
-        l1_error = l2_delta.dot(weights[1].T)
-        l1_delta = l1_error * sigmoid_prime(l1)
-        return l2_error, l1_delta, l2_delta
+        self.deltas = list()
+        #Get error or cost for this set
+        self.output_error = self.train_target.reshape(-1, 1) - self.outputs[-1]
+
+        #Cost times derivative is gradient
+        output_delta = self.output_error * self.activation_func_prime(self.outputs[len(self.outputs)-1])
+        
+        #For every available output down, need to get the error, and delta.
+        #Start at 2nd to last output (last hidden layer), and work backwords
+        prior_delta = output_delta
+        self.deltas.append(output_delta)
+
+        for layer in range(len(self.outputs) - 2, -1, -1):
+            layer_error = prior_delta.dot(self.weights[layer + 1].T)
+            layer_delta = layer_error * self.activation_func_prime(self.outputs[layer])
+            prior_delta = layer_delta
+            self.deltas.append(layer_delta)
+
+        #Put them in order
+        self.deltas.reverse()
+
+
+        
+    def update_weights(self):
+        
+        for layer in range(len(self.weights)-1, 0, -1):
+            self.weights[layer] = self.weights[layer] + (self.alpha * self.outputs[layer-1].T.dot(self.deltas[layer]))
+            
+        self.weights[0] = self.weights[0] + (self.alpha * self.train_input.T.dot(self.deltas[0]))
+
+
+
+    def accuracy(self):
+        correct_preds = np.ravel(predicted)==true_label
+        return np.sum(correct_preds) / len(true_label)
+
+
+
+    def predict(self):
+        _, l2 = feed_forward(X, weights)
+        preds = np.ravel((l2 > 0.5).astype(int))
+        return preds
+
 
 
     
@@ -230,16 +274,5 @@ X, Xt, y, yt = train_test_split(coord, cl,
                                 test_size=0.30,
                                 random_state=0)
 
-nn = neural_network(2, 5, hl_sizes=2, train_input=X, train_target=y, test_input=Xt, test_target=yt)
-output = nn.feed_forward(X)
-print(output)
-#nn.back_propogation(outputs
-
-
-#node1 = node("a", "b")
-#node2 = node("a", "b")
-#weight1 = weight(node1, node2, 1.0)
-#arr = 200 * np.random.random_sample((10, 1)) - 100
-#nn = neural_network()
-#arr = nn.activation_function(arr, name='Tanh')
-#print(arr)
+nn = neural_network(2, 5, hl_sizes=(2, 5))
+nn.train(train_input=X, train_target=y, test_input=Xt, test_target=yt)
