@@ -23,22 +23,34 @@ class neural_network:
         list(floats), all weights for each layer.
     Learning rate : (self.alpha)
         float, learning rate
+    Epochs : (self.epochs)
+        int, epochs
+    Threshold : (self.threshold)
+        float, acceptance threshold
+    Hidden layer sizes : (self.hl_sizes)
+        tuple(int) : sizes for each hidden layer
     Activation functions (self.a_f)
         list(str), list of strings of activation functions, with output last
+        
     Constructor parameters
     -----------
     input nodes : in_size
         int, number of input nodes
     output nodes : out_size
         int, number of output nodes
+    alpha : alpha
+        int, learning rate (default is 0.05)
+    epochs : epochs
+        int, number of epochs
+    threshold : threshold
+        float, acceptance threshold
     output function : out_func
         str, name of the output function (default is softmax)
-    hidden layers : hl_count
-        int, number of hidden layers (can be None)
-    Hidden layer vars : **hl_s_af
-        strs, activation function for each hidden layer (ignored if h_l_count is None)
+    hidden layers sizes: hl_sizes
+        tuple(int), hidden layer sizes (can be None)
+    hidden layer functions : hl_functions
+        tuple(str), activation function for each hidden layer (ignored if h_l_count is None)
 
-    
     Global variables
     ----------------
     Function keywords : funcs
@@ -128,7 +140,6 @@ class neural_network:
         self.test_input = test_input
         self.test_target = test_target
 
-        #print(self.weights)
         for j in range(self.epochs + 1):
 
             # First, feed forward through the hidden layer
@@ -156,7 +167,7 @@ class neural_network:
                 print('test {:0.3f}'.format(test_accuracy))
 
 
-                
+        print(self.outputs[-1])           
     def init_weights(self, inp, out):
         #randn creates random element, divide by squareroot of inp for randomness
         return np.random.randn(inp, out) / np.sqrt(inp)
@@ -203,11 +214,13 @@ class neural_network:
     def feed_forward(self, inputs):
         #Create copy of test data
         a = inputs.copy()
-        #print(a)
+
         #Empty return list
         out = list()
+        
         #get activation function range
         a_f_range = len(self.weights) - len(self.a_f)
+
         for W in range(len(self.weights)):
             #Dot product of input value and weight
             z = np.dot(a, self.weights[W])
@@ -223,7 +236,9 @@ class neural_network:
             out.append(a)
 
         self.outputs = out
-    
+
+
+        
     def activation_func(self, input_values, name='sigmoid'):
         """
         Runs value through the activation function for a neuron.
@@ -244,7 +259,7 @@ class neural_network:
         """
 
         if name == 'sigmoid':
-            return 1/(1 + np.exp(input_values))
+            return 1/(1 + np.exp(-input_values))
         elif name == 'tanh':
             return np.tanh(input_values)
 
@@ -307,15 +322,13 @@ class neural_network:
 
 
 
-    
+
+np.random.seed(0)
 coord, cl = make_moons(300, noise=0.05)
 X, Xt, y, yt = train_test_split(coord, cl,
                                 test_size=0.30,
                                 random_state=0)
-
-#print(y.shape)
-#print(X)
-nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=3, hl_functions='sigmoid', epochs=0)
+print(X)
+nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=(3, 4), hl_functions=('sigmoid', 'sigmoid'), epochs=30000)
 nn.train(train_input=X, train_target=y, test_input=Xt, test_target=yt)
-#nn.feed_forward(X)
-#nn.back_propagation()
+

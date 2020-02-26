@@ -2,6 +2,8 @@ from sklearn.datasets import make_moons
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import numpy as np
+import pdb
+import sys
 
 
 def sigmoid(z):
@@ -27,9 +29,10 @@ def create_architecture(input_layer, first_layer, output_layer, random_seed=0):
 def feed_forward(X, weights):
     #Create copy of test data
     a = X.copy()
-    print(a)
+    #print(a)
     #Empty return list
     out = list()
+    #pdb.set_trace()
     for W in weights:
         #Dot product of input value and weight
         z = np.dot(a, W)
@@ -52,8 +55,6 @@ def back_propagation(l1, l2, weights, y):
     l2_delta = l2_error * sigmoid_prime(l2) #Cost times derivative is gradient
     l1_error = l2_delta.dot(weights[1].T)
     l1_delta = l1_error * sigmoid_prime(l1)
-    print(l2_delta)
-    print(l1_delta)
     return l2_error, l1_delta, l2_delta
 
 def update_weights(X, l1, l1_delta, l2_delta, weights, alpha=1.0):
@@ -116,10 +117,7 @@ y - output training data set correct responses
 yt - output test data set correct responses
 """
 weights = create_architecture(X.shape[1], 3, 1)
-print(weights)
-l1, l2 = feed_forward(X, weights)
-print(l1)
-print(l2)
+#l1, l2 = feed_forward(X, weights)
 #l2_error, l1_delta, l2_delta = back_propagation(l1, l2, weights, y)
 #weights = update_weights(X, l1, l1_delta, l2_delta, weights, alpha=0.05)
 #test = [1,2,3,4]
@@ -130,8 +128,8 @@ print(l2)
 #print(l1_delta.shape)
 #print(l2_delta.shape)
 #print(X)
-"""
-for j in range(1, 1 + 1):
+
+for j in range(30000 + 1):
 
     # First, feed forward through the hidden layer
     l1, l2 = feed_forward(X, weights)
@@ -144,7 +142,6 @@ for j in range(1, 1 + 1):
 
     # From time to time, reporting the results
     if (j % 5000) == 0:
-        print(l2)
         train_error = np.mean(np.abs(l2_error))
         print('Epoch {:5}'.format(j), end=' - ')
         print('error: {:0.4f}'.format(train_error), end= ' - ')
@@ -156,4 +153,4 @@ for j in range(1, 1 + 1):
         print('acc: train {:0.3f}'.format(train_accuracy), end= ' | ')
         print('test {:0.3f}'.format(test_accuracy))
 
-"""
+

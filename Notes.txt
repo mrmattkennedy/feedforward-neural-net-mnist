@@ -110,8 +110,16 @@ Main aspects
 	Accuracy
 	Loss
 		Need to find a way to get user input on correct predictions.
-
-
+		In this example, just the output > 0.5.
+		What about OCR? 9 outputs, want 1 to be 1 and rest 0.
+		output is [0.0, 0.0...1.0]
+		target is same
+		Sigmoid is adept at modeling probability, so use 0.5 as halfway between 0 and 1 for positive or negative output. Useful for classifying 2 classes, or 1 class among many.
+		
+		Sigmoid function - use acceptance threshold
+		Softmax function - compare to what output should be (get the loss, see above 3Blue1Brown video)
+		
+		
 Links:
 https://stats.stackexchange.com/questions/181/how-to-choose-the-number-of-hidden-layers-and-nodes-in-a-feedforward-neural-netw
 capsule networks & squashing: https://medium.com/ai%C2%B3-theory-practice-business/understanding-hintons-capsule-networks-part-i-intuition-b4b559d1159b
