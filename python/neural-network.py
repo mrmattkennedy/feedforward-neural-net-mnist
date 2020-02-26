@@ -61,7 +61,7 @@ class neural_network:
 
     
     def __init__(self, in_size, out_size,
-                 alpha=0.05, epochs=30000, threshold=0.5,
+                 alpha=0.05, epochs=30000, threshold=0.5, bias=True,
                  out_func=None, hl_sizes=None, hl_functions=None):
         
         #Verify sizes are numbers above 0
@@ -118,6 +118,7 @@ class neural_network:
         self.alpha = alpha
         self.epochs = epochs
         self.threshold = threshold
+        self.bias = bias
         
         #Create list of activation functions
         self.a_f = list()
@@ -166,12 +167,13 @@ class neural_network:
                 print('acc: train {:0.3f}'.format(train_accuracy), end= ' | ')
                 print('test {:0.3f}'.format(test_accuracy))
 
-
-        print(self.outputs[-1])           
+       
     def init_weights(self, inp, out):
         #randn creates random element, divide by squareroot of inp for randomness
-        return np.random.randn(inp, out) / np.sqrt(inp)
-
+        if self.bias:
+            return np.random.randn(inp+1, out) / np.sqrt(inp)
+        else:
+            return np.random.randn(inp, out) / np.sqrt(inp)
     
     
     def create_architecture(self, in_layer, out_layer, hidden_layers=None, random_seed=0):
@@ -208,13 +210,13 @@ class neural_network:
         arch = list(zip(layers[:-1], layers[1:]))
         #Create list of weights
         self.weights = [self.init_weights(inp, out) for inp, out in arch]
-
+            
 
         
-    def feed_forward(self, inputs):
+    def feed_forward(self, inputs):            
         #Create copy of test data
         a = inputs.copy()
-
+            
         #Empty return list
         out = list()
         
@@ -222,6 +224,12 @@ class neural_network:
         a_f_range = len(self.weights) - len(self.a_f)
 
         for W in range(len(self.weights)):
+            #If bias exists, add an input for each bias
+            if self.bias:
+                rows, _ = inputs.shape
+                ones = np.ones((rows, 1))
+                a = np.hstack((a, ones))
+
             #Dot product of input value and weight
             z = np.dot(a, self.weights[W])
 
@@ -231,7 +239,10 @@ class neural_network:
                 a = self.activation_func(z, self.a_f[W-len(self.a_f)])
             else:
                 a = z
-            
+
+            if self.bias:
+                #pdb.set_trace()
+                a = np.hstack((a, ones * np.average(self.weights[W][-1])))
             #Append new input to return
             out.append(a)
 
@@ -277,7 +288,7 @@ class neural_network:
         self.output_error = self.train_target.reshape(-1, 1) - self.outputs[-1]
 
         #Cost times derivative is gradient
-        output_delta = self.output_error * self.activation_func_prime(self.outputs[len(self.outputs)-1])
+        output_delta = self.output_error * self.activation_func_prime(self.outputs[-1])
         
         #For every available output down, need to get the error, and delta.
         #Start at 2nd to last output (last hidden layer), and work backwords
@@ -286,7 +297,9 @@ class neural_network:
 
         try:
             for layer in range(len(self.outputs) - 2, -1, -1):
+                pdb.set_trace()
                 layer_error = prior_delta.dot(self.weights[layer + 1].T)
+    
                 layer_delta = layer_error * self.activation_func_prime(self.outputs[layer])
                 #pdb.set_trace()
                 prior_delta = layer_delta
@@ -328,7 +341,7 @@ coord, cl = make_moons(300, noise=0.05)
 X, Xt, y, yt = train_test_split(coord, cl,
                                 test_size=0.30,
                                 random_state=0)
-print(X)
+print(type(X))
 nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=(3, 4), hl_functions=('sigmoid', 'sigmoid'), epochs=30000)
 nn.train(train_input=X, train_target=y, test_input=Xt, test_target=yt)
 
