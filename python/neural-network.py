@@ -128,11 +128,14 @@ class neural_network:
         self.test_input = test_input
         self.test_target = test_target
 
+        #print(self.weights)
         for j in range(self.epochs + 1):
 
             # First, feed forward through the hidden layer
             self.feed_forward(self.train_input)
 
+            #for output in self.outputs:
+             #s   print(output)
             # Then, error back propagation from output to input
             self.back_propagation()
 
@@ -200,6 +203,7 @@ class neural_network:
     def feed_forward(self, inputs):
         #Create copy of test data
         a = inputs.copy()
+        #print(a)
         #Empty return list
         out = list()
         #get activation function range
@@ -207,7 +211,7 @@ class neural_network:
         for W in range(len(self.weights)):
             #Dot product of input value and weight
             z = np.dot(a, self.weights[W])
-            #pdb.set_trace()
+
             #Check if there is an activation function for this layer
             if len(self.a_f) > 0 and W >= a_f_range and self.a_f[W-len(self.a_f)]:
                 #Input is now equal to activation of output
@@ -309,8 +313,9 @@ X, Xt, y, yt = train_test_split(coord, cl,
                                 test_size=0.30,
                                 random_state=0)
 
-print(y.shape)
-nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=3, hl_functions='sigmoid')
+#print(y.shape)
+#print(X)
+nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=3, hl_functions='sigmoid', epochs=0)
 nn.train(train_input=X, train_target=y, test_input=Xt, test_target=yt)
 #nn.feed_forward(X)
 #nn.back_propagation()

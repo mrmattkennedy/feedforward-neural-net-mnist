@@ -27,6 +27,7 @@ def create_architecture(input_layer, first_layer, output_layer, random_seed=0):
 def feed_forward(X, weights):
     #Create copy of test data
     a = X.copy()
+    print(a)
     #Empty return list
     out = list()
     for W in weights:
@@ -115,8 +116,10 @@ y - output training data set correct responses
 yt - output test data set correct responses
 """
 weights = create_architecture(X.shape[1], 3, 1)
-#print(weights[1].T)
-#l1, l2 = feed_forward(X, weights)
+print(weights)
+l1, l2 = feed_forward(X, weights)
+print(l1)
+print(l2)
 #l2_error, l1_delta, l2_delta = back_propagation(l1, l2, weights, y)
 #weights = update_weights(X, l1, l1_delta, l2_delta, weights, alpha=0.05)
 #test = [1,2,3,4]
@@ -127,7 +130,7 @@ weights = create_architecture(X.shape[1], 3, 1)
 #print(l1_delta.shape)
 #print(l2_delta.shape)
 #print(X)
-
+"""
 for j in range(1, 1 + 1):
 
     # First, feed forward through the hidden layer
@@ -153,3 +156,4 @@ for j in range(1, 1 + 1):
         print('acc: train {:0.3f}'.format(train_accuracy), end= ' | ')
         print('test {:0.3f}'.format(test_accuracy))
 
+"""
