@@ -51,6 +51,7 @@ y - correct responses
 """
 def back_propagation(l1, l2, weights, y):
     #Reshape y
+    pdb.set_trace()
     l2_error = y.reshape(-1, 1) - l2 #Get the cost, or error.
     l2_delta = l2_error * sigmoid_prime(l2) #Cost times derivative is gradient
     l1_error = l2_delta.dot(weights[1].T)
@@ -127,9 +128,9 @@ weights = create_architecture(X.shape[1], 3, 1)
 #print(l2.shape)
 #print(l1_delta.shape)
 #print(l2_delta.shape)
-#print(X)
+print(X)
 
-for j in range(30000 + 1):
+for j in range(1 + 1):
 
     # First, feed forward through the hidden layer
     l1, l2 = feed_forward(X, weights)
@@ -141,7 +142,7 @@ for j in range(30000 + 1):
     weights = update_weights(X, l1, l1_delta, l2_delta, weights, alpha=0.05)
 
     # From time to time, reporting the results
-    if (j % 5000) == 0:
+    if (j % 1) == 0:
         train_error = np.mean(np.abs(l2_error))
         print('Epoch {:5}'.format(j), end=' - ')
         print('error: {:0.4f}'.format(train_error), end= ' - ')

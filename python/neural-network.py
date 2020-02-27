@@ -1,12 +1,11 @@
 import pdb
 import sys
 import math
+import time
 import traceback
 import numpy as np
 from sklearn.datasets import make_moons
 from sklearn.model_selection import train_test_split
-import warnings
-warnings.filterwarnings("error")
 
 
 class neural_network:
@@ -61,7 +60,7 @@ class neural_network:
 
     
     def __init__(self, in_size, out_size,
-                 alpha=0.05, epochs=30000, threshold=0.5,
+                 alpha=0.05, epochs=30000, threshold=0.5, bias=True,
                  out_func=None, hl_sizes=None, hl_functions=None):
         
         #Verify sizes are numbers above 0
@@ -118,6 +117,7 @@ class neural_network:
         self.alpha = alpha
         self.epochs = epochs
         self.threshold = threshold
+        self.bias = bias
         
         #Create list of activation functions
         self.a_f = list()
@@ -144,9 +144,7 @@ class neural_network:
 
             # First, feed forward through the hidden layer
             self.feed_forward(self.train_input)
-
-            #for output in self.outputs:
-             #s   print(output)
+            
             # Then, error back propagation from output to input
             self.back_propagation()
 
@@ -166,12 +164,13 @@ class neural_network:
                 print('acc: train {:0.3f}'.format(train_accuracy), end= ' | ')
                 print('test {:0.3f}'.format(test_accuracy))
 
-
-        print(self.outputs[-1])           
+       
     def init_weights(self, inp, out):
         #randn creates random element, divide by squareroot of inp for randomness
-        return np.random.randn(inp, out) / np.sqrt(inp)
-
+        if self.bias:
+            return np.random.randn(inp+1, out) / np.sqrt(inp)
+        else:
+            return np.random.randn(inp, out) / np.sqrt(inp)
     
     
     def create_architecture(self, in_layer, out_layer, hidden_layers=None, random_seed=0):
@@ -208,33 +207,41 @@ class neural_network:
         arch = list(zip(layers[:-1], layers[1:]))
         #Create list of weights
         self.weights = [self.init_weights(inp, out) for inp, out in arch]
-
+            
 
         
-    def feed_forward(self, inputs):
+    def feed_forward(self, inputs):            
         #Create copy of test data
-        a = inputs.copy()
-
+        i_c = inputs.copy()
+            
         #Empty return list
         out = list()
         
         #get activation function range
         a_f_range = len(self.weights) - len(self.a_f)
 
+        
         for W in range(len(self.weights)):
+            #If bias exists, add an input for each bias
+            
+            if self.bias:
+                rows, _ = inputs.shape
+                ones = np.ones((rows, 1))
+                i_c = np.hstack((i_c, ones))
+            
             #Dot product of input value and weight
-            z = np.dot(a, self.weights[W])
+            z = np.dot(i_c, self.weights[W])
 
             #Check if there is an activation function for this layer
             if len(self.a_f) > 0 and W >= a_f_range and self.a_f[W-len(self.a_f)]:
                 #Input is now equal to activation of output
-                a = self.activation_func(z, self.a_f[W-len(self.a_f)])
+                i_c = self.activation_func(z, self.a_f[W-len(self.a_f)])
             else:
-                a = z
-            
+                i_c = z
+                
             #Append new input to return
-            out.append(a)
-
+            out.append(i_c)
+            
         self.outputs = out
 
 
@@ -273,39 +280,78 @@ class neural_network:
     
     def back_propagation(self):
         self.deltas = list()
-        #Get error or cost for this set
+        #pdb.set_trace()
+        
+        if self.bias:
+            
+            self.bias_outputs = list()
+            self.bias_deltas = list()
+            self.bias_weights = list()
+            
+            for weight in range(len(self.weights)):
+                self.bias_weights.append(self.weights[weight][-1])
+                self.weights[weight] = np.delete(self.weights[weight], -1, 0)
+                
+        #Get error or cost for this set        
         self.output_error = self.train_target.reshape(-1, 1) - self.outputs[-1]
 
         #Cost times derivative is gradient
-        output_delta = self.output_error * self.activation_func_prime(self.outputs[len(self.outputs)-1])
+        output_delta = self.output_error * self.activation_func_prime(self.outputs[-1])
         
         #For every available output down, need to get the error, and delta.
         #Start at 2nd to last output (last hidden layer), and work backwords
         prior_delta = output_delta
         self.deltas.append(output_delta)
 
-        try:
-            for layer in range(len(self.outputs) - 2, -1, -1):
-                layer_error = prior_delta.dot(self.weights[layer + 1].T)
-                layer_delta = layer_error * self.activation_func_prime(self.outputs[layer])
-                #pdb.set_trace()
-                prior_delta = layer_delta
-                self.deltas.append(layer_delta)
-        except RuntimeWarning:
-            extype, value, tb = sys.exc_info()
-            traceback.print_exc()
-            pdb.post_mortem(tb)
+        
+        if self.bias:
+            #Need to make inputs of shape
+            rows, cols = self.outputs[-1].shape
+            ones = np.ones((rows, cols))
+            bias_outputs = ones * self.bias_weights[-1]
+            bias_layer_delta = self.output_error * self.activation_func_prime(bias_outputs)
+            self.bias_outputs.append(bias_outputs)
+            self.bias_deltas.append(bias_layer_delta)
+             
+        for layer in range(len(self.outputs) - 2, -1, -1):                
+            layer_error = prior_delta.dot(self.weights[layer + 1].T)
+            layer_delta = layer_error * self.activation_func_prime(self.outputs[layer])
+
+            
+            #Backpropagate to bias if included
+            if self.bias:
+                #Need to make inputs of shape
+                rows, cols = self.outputs[layer].shape
+                ones = np.ones((rows, cols))
+                bias_outputs = ones * self.bias_weights[layer]
+                bias_layer_delta = layer_error * self.activation_func_prime(bias_outputs)
+                self.bias_outputs.append(bias_outputs)
+                self.bias_deltas.append(bias_layer_delta)
+             
+            prior_delta = layer_delta
+            self.deltas.append(layer_delta)
+            
         #Put them in order
         self.deltas.reverse()
-
+        if self.bias:
+            self.bias_deltas.reverse()
+            self.bias_outputs.reverse()
 
         
     def update_weights(self):
         for layer in range(len(self.weights)-1, 0, -1):
             self.weights[layer] = self.weights[layer] + (self.alpha * self.outputs[layer-1].T.dot(self.deltas[layer]))
-            
+            if self.bias:
+                    self.bias_weights[layer] = self.bias_weights[layer] + (self.alpha * self.bias_outputs[layer].T.dot(self.bias_deltas[layer]))
+                    
         self.weights[0] = self.weights[0] + (self.alpha * self.train_input.T.dot(self.deltas[0]))
+        if self.bias:
+            self.bias_weights[0] = self.bias_weights[0] + (self.alpha * self.bias_outputs[0].T.dot(self.bias_deltas[0]))
 
+        if self.bias:
+            for layer in range(len(self.weights)):
+                self.bias_weights[layer] = np.mean(self.bias_weights[layer], axis=0)
+                self.weights[layer] = np.vstack((self.weights[layer], self.bias_weights[layer]))
 
 
     def accuracy(self, target, predictions):
@@ -328,6 +374,12 @@ coord, cl = make_moons(300, noise=0.05)
 X, Xt, y, yt = train_test_split(coord, cl,
                                 test_size=0.30,
                                 random_state=0)
-print(X)
-nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=(3, 4), hl_functions=('sigmoid', 'sigmoid'), epochs=30000)
+start_time = time.time()
+nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=(3, 2), hl_functions=('sigmoid', 'sigmoid'), epochs=30000, bias=True)
+#nn.train(train_input=X, train_target=y, test_input=Xt, test_target=yt)
+print("--- %s seconds ---" % (time.time() - start_time))
+
+nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=(3, 2), hl_functions=('sigmoid', 'sigmoid'), epochs=30000, bias=False)
+start_time = time.time()
 nn.train(train_input=X, train_target=y, test_input=Xt, test_target=yt)
+print("--- %s seconds ---" % (time.time() - start_time))
