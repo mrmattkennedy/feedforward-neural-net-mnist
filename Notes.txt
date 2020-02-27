@@ -99,6 +99,9 @@ Main aspects
 		Sum how each input affected times how we need it to change, get the change we want.
 		Add to weight.
 		
+		Excellent example:
+		https://www.anotsorandomwalk.com/backpropagation-example-with-numbers-step-by-step/
+		(output node 1 - target value 1)(output node 1(1 - output node 1))hidden node 1
 	Update weights:
 		Need the inputs for each layer starting point of the weights (input and hidden), as well as the deltas for the output layers (l1_delta, l2_delta), the weights, and the learning rate (alpha).
 		Start at the end - weights between output layer and hidden layer = the weights + (learning rate * (the inputs transposed dot product multiplied by the output layer delta))

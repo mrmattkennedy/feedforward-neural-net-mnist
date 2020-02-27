@@ -307,8 +307,9 @@ class neural_network:
                 self.bias_weights.append(self.weights[weight][-1])
                 self.weights[weight] = np.delete(self.weights[weight], -1, 0)
                 
-        #Get error or cost for this set        
-        self.output_error = self.train_target.reshape(-1, 1) - self.outputs[-1]
+        #Get error or cost for this set
+        pdb.set_trace()
+        self.output_error = self.calculate_error(self.train_target, self.outputs[-1])
 
         #Cost times derivative is gradient
         output_delta = self.output_error * self.activation_func_prime(self.outputs[-1])
@@ -351,6 +352,21 @@ class neural_network:
         if self.bias:
             self.bias_deltas.reverse()
             self.bias_outputs.reverse()
+
+    def calculate_error(self, target, output):
+        #Target is a #, output is an array of probabilities (softmax)
+        if np.isscalar(target[0]) and not np.isscalar(output[0]):
+            cols = output[0].shape
+            ret_tup = []
+            
+            for out in range(len(output)):
+                temp = np.zeros(cols)
+                temp[target[out]] = 1
+                ret_tup.append((np.sum(np.square(output[out] - temp)/2)))
+            return np.array(ret_tup)
+        else:
+            return target.reshape(-1, 1) - outputs
+
 
         
     def update_weights(self):
