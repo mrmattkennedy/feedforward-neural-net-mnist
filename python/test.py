@@ -118,6 +118,9 @@ y - output training data set correct responses
 yt - output test data set correct responses
 """
 weights = create_architecture(X.shape[1], 3, 1)
+test = np.array([5000, 7000, 9000])
+test = np.where(test>7000, 1, test)
+print(test)
 #l1, l2 = feed_forward(X, weights)
 #l2_error, l1_delta, l2_delta = back_propagation(l1, l2, weights, y)
 #weights = update_weights(X, l1, l1_delta, l2_delta, weights, alpha=0.05)
@@ -128,8 +131,8 @@ weights = create_architecture(X.shape[1], 3, 1)
 #print(l2.shape)
 #print(l1_delta.shape)
 #print(l2_delta.shape)
-print(X)
-
+#print(X)
+"""
 for j in range(1 + 1):
 
     # First, feed forward through the hidden layer
@@ -155,3 +158,4 @@ for j in range(1 + 1):
         print('test {:0.3f}'.format(test_accuracy))
 
 
+"""

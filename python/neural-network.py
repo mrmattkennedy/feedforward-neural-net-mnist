@@ -3,7 +3,9 @@ import sys
 import math
 import time
 import traceback
+import idx2numpy
 import numpy as np
+from pathlib import Path
 from sklearn.datasets import make_moons
 from sklearn.model_selection import train_test_split
 
@@ -115,10 +117,13 @@ class neural_network:
 
         #Set hyperparameters
         self.alpha = alpha
+        self.alpha_max = 0.01
+        self.alpha_adjust_factor = 10
+        
         self.epochs = epochs
         self.threshold = threshold
         self.bias = bias
-        
+        self.e_max = 709
         #Create list of activation functions
         self.a_f = list()
         if hl_functions is not None:
@@ -141,7 +146,7 @@ class neural_network:
         self.test_target = test_target
 
         for j in range(self.epochs + 1):
-
+            
             # First, feed forward through the hidden layer
             self.feed_forward(self.train_input)
             
@@ -152,19 +157,21 @@ class neural_network:
             self.update_weights()
 
             # From time to time, reporting the results
-            if (j % 5000) == 0:
+            if (j % 1) == 0:
+                self.alpha = self.alpha * self.alpha_adjust_factor if self.alpha < self.alpha_max else self.alpha_max
+                print('Alpha is {}'.format(self.alpha))
                 train_error = np.mean(np.abs(self.output_error))
                 print('Epoch {:5}'.format(j), end=' - ')
                 print('error: {:0.4f}'.format(train_error), end= ' - ')
 
-                train_accuracy = self.accuracy(target=self.train_target, predictions=(self.outputs[-1] > self.threshold))
+                train_accuracy = self.accuracy(target=self.train_target, predictions=(self.get_predictions(self.train_target)))
                 test_preds = self.predict(self.test_input)
                 test_accuracy = self.accuracy(target=self.test_target, predictions=test_preds)
 
                 print('acc: train {:0.3f}'.format(train_accuracy), end= ' | ')
                 print('test {:0.3f}'.format(test_accuracy))
 
-       
+            print('Epoch {} done'.format(j))
     def init_weights(self, inp, out):
         #randn creates random element, divide by squareroot of inp for randomness
         if self.bias:
@@ -210,7 +217,7 @@ class neural_network:
             
 
         
-    def feed_forward(self, inputs):            
+    def feed_forward(self, inputs):
         #Create copy of test data
         i_c = inputs.copy()
             
@@ -230,6 +237,7 @@ class neural_network:
                 i_c = np.hstack((i_c, ones))
             
             #Dot product of input value and weight
+            #pdb.set_trace()
             z = np.dot(i_c, self.weights[W])
 
             #Check if there is an activation function for this layer
@@ -266,16 +274,23 @@ class neural_network:
         """
 
         if name == 'sigmoid':
+            input_values = np.where(input_values > self.e_max, self.e_max, input_values)
+            input_values = np.where(input_values < -self.e_max, -self.e_max, input_values)
             return 1/(1 + np.exp(-input_values))
         elif name == 'tanh':
             return np.tanh(input_values)
-
+        elif name == 'softmax':
+            t = np.exp(input_values)
+            a = np.exp(input_values) / np.sum(t, axis=1).reshape(-1,1)
+            return a
 
 
     def activation_func_prime(self, input_values, name='sigmoid'):
         if name == 'sigmoid':
             return input_values * (1 - input_values)
-
+        elif name == 'softmax':
+            s = input_values.reshape(-1,1)
+            return np.diagflat(s) - np.dot(s, s.T)
 
     
     def back_propagation(self):
@@ -343,7 +358,8 @@ class neural_network:
             self.weights[layer] = self.weights[layer] + (self.alpha * self.outputs[layer-1].T.dot(self.deltas[layer]))
             if self.bias:
                     self.bias_weights[layer] = self.bias_weights[layer] + (self.alpha * self.bias_outputs[layer].T.dot(self.bias_deltas[layer]))
-                    
+
+        #pdb.set_trace()            
         self.weights[0] = self.weights[0] + (self.alpha * self.train_input.T.dot(self.deltas[0]))
         if self.bias:
             self.bias_weights[0] = self.bias_weights[0] + (self.alpha * self.bias_outputs[0].T.dot(self.bias_deltas[0]))
@@ -362,24 +378,55 @@ class neural_network:
 
 
     def predict(self, inputs):
+        #pdb.set_trace()
+        
         self.feed_forward(inputs)
-        preds = np.ravel(((self.outputs[-1]>self.threshold).astype(int)))
+        preds = self.get_predictions(target=self.test_target).astype(int)
         return preds
 
 
 
+    def get_predictions(self, target=None):
+        pdb.set_trace()
+        if len(self.a_f) == 0 or self.a_f[-1] == 'sigmoid':
+            return self.outputs[-1] > self.threshold
+        elif self.a_f[-1] == 'softmax':
+            #return np.ravel(self.outputs[-1])==target
+            ret_tup = []
+            for output in range(len(self.outputs[-1])):
+                guess_right = np.argmax(self.outputs[-1][output])==target[output]
+                ret_tup.append((guess_right))
+            return np.array(ret_tup)
 
 np.random.seed(0)
-coord, cl = make_moons(300, noise=0.05)
-X, Xt, y, yt = train_test_split(coord, cl,
-                                test_size=0.30,
-                                random_state=0)
-start_time = time.time()
-nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=(3, 2), hl_functions=('sigmoid', 'sigmoid'), epochs=30000, bias=True)
-#nn.train(train_input=X, train_target=y, test_input=Xt, test_target=yt)
-print("--- %s seconds ---" % (time.time() - start_time))
+rootDir = Path(sys.path[0]).parent
+train_images = str(rootDir) + "\\MNIST test data\\train-images.idx3-ubyte"
+train_label = str(rootDir) + "\\MNIST test data\\train-labels.idx1-ubyte"
+test_images = str(rootDir) + "\\MNIST test data\\t10k-images.idx3-ubyte"
+test_label = str(rootDir) + "\\MNIST test data\\t10k-labels.idx1-ubyte"
 
-nn = neural_network(2, 1, out_func='sigmoid', hl_sizes=(3, 2), hl_functions=('sigmoid', 'sigmoid'), epochs=30000, bias=False)
+train_image_data = idx2numpy.convert_from_file(train_images)
+train_label_data = idx2numpy.convert_from_file(train_label)
+test_image_data = idx2numpy.convert_from_file(test_images)
+test_label_data = idx2numpy.convert_from_file(test_label)
+
+items, rows, cols = train_image_data.shape
+train_image_data = train_image_data.reshape(items, rows * cols)
+items, rows, cols = test_image_data.shape
+test_image_data = test_image_data.reshape(items, rows * cols)
+_, in_nodes = train_image_data.shape
+
+nn = neural_network(in_nodes, 10,
+                    out_func='softmax',
+                    hl_sizes=500,
+                    hl_functions='sigmoid',
+                    alpha=0.0001,
+                    epochs=5, bias=False)
+
 start_time = time.time()
-nn.train(train_input=X, train_target=y, test_input=Xt, test_target=yt)
+nn.train(train_input=train_image_data,
+         train_target=train_label_data,
+         test_input=test_image_data,
+         test_target=test_label_data)
+
 print("--- %s seconds ---" % (time.time() - start_time))
