@@ -369,41 +369,53 @@ class neural_network:
         self.deltas = list()
         self.output_error = self.calculate_error(self.train_target, self.outputs[-1])
         error_gradient = self.error_derivative(self.train_target, self.outputs[-1])
-        #error_gradient = np.mean(error_gradient, axis=0)
+        #np.dot(error_gradient[0].reshape(-1,1), self.outputs[0][0].reshape(1, 500))
+        #rows = error_gradient.shape[0]
+        #cols = self.outputs[0][0].shape[0]
+       # out_delta = np.array([np.dot(error_gradient[row].reshape(-1,1), self.outputs[0][row].reshape(1, cols)) for row in range(rows)])
+        #out_delta = np.mean(out_delta, axis=0)
+        #wi,j = yi * (output(j) - target(j))
+        #weights from node 1 in hidden layer to output node 10:
+        #self.outputs[0](col 1) * (mean(error_gradient[9]))
+        #self.outputs[0][i] * np.mean(self.outputs[1][:,j] * error_gradient[:,j])
+        #np.multiply(self.outputs[0][:,0], error_gradient[:,0])
+        deltas = np.dot(self.outputs[0].T, error_gradient) / error_gradient.shape[0]
         #pdb.set_trace()
-        prior_delta = np.dot(self.outputs[0].T, error_gradient)
-        self.deltas.append(prior_delta)
-        
+        #self.activation_func_prime(self.outputs[-1], self.a_f[-1])
+        prior_deltas = deltas
+        self.deltas.append(prior_deltas)
+
         for layer in range(len(self.outputs)-2, -1, -1):
-            error = error_gradient.dot(self.weights[layer+1].T)
-            if layer > 0:
-                delta = np.dot(error.T, self.activation_func_prime(self.outputs[layer], self.a_f[layer])).T
+            layer_errors = prior_deltas * self.weights[layer+1]
+            errors_summed = np.sum(layer_errors, axis=1)
+            if layer != 0:
+                layer_deltas = np.dot(self.activation_func_prime(self.outputs[layer], self.a_f[layer]),
+                                      errors_summed.reshape(-1, 1)) * self.outputs[layer-1]
             else:
-                delta = np.dot(error.T, self.activation_func_prime(self.train_input, self.a_f[layer])).T
-            self.deltas.append(delta)
-            prior_delta = delta
+               #pdb.set_trace()
+                layer_gradients = np.multiply(self.activation_func_prime(self.outputs[layer], self.a_f[layer]),
+                                      errors_summed)
+                layer_deltas = np.dot(self.train_input.T, layer_gradients)
+            self.deltas.append(layer_deltas)
+            prior_deltas = layer_deltas
         self.deltas.reverse()
 
         
     def calculate_error(self, target, output):
         #Target is a #, output is an array of probabilities (softmax)
-        if np.isscalar(target[0]) and not np.isscalar(output[0]):
-            if self.loss == 'mse':
-                rows, cols = output.shape
-                reshaped_target = np.zeros((rows, 10))
-                reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
-                
-                return (np.square(reshaped_target - output)).mean(axis=1)
-            elif self.loss == 'cross-entropy':
-                rows, cols = output.shape
-                reshaped_target = np.zeros((rows, 10))
-                reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
-                #Cost - average loss of each output node
-                ce = -np.sum(reshaped_target * np.log(output + 1e-8), axis=1) / cols
-                return ce
-                
-        else:
-            return target.reshape(-1, 1) - outputs
+        if self.loss == 'mse':
+            rows, cols = output.shape
+            reshaped_target = np.zeros((rows, 10))
+            reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
+            
+            return (np.square(reshaped_target - output)).mean(axis=1)
+        elif self.loss == 'cross-entropy':
+            rows, cols = output.shape
+            reshaped_target = np.zeros((rows, 10))
+            reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
+            #Cost - average loss of each output node
+            ce = -np.sum(reshaped_target * np.log(output + 1e-8), axis=1) / cols
+            return ce
 
     def error_derivative(self, target, output):
         if self.loss == 'cross-entropy':
@@ -414,7 +426,8 @@ class neural_network:
 
         
     def update_weights(self):
-        for layer in range(len(self.weights)-1, 0, -1):
+        #pdb.set_trace()
+        for layer in range(len(self.weights)-1, -1, -1):
             #self.weights[layer] = self.weights[layer] + (self.alpha * self.outputs[layer-1].T.dot(self.deltas[layer]))
             self.weights[layer] = self.weights[layer] + (self.alpha * self.deltas[layer])
             if self.bias:
@@ -422,7 +435,7 @@ class neural_network:
 
         #pdb.set_trace()            
         #self.weights[0] = self.weights[0] + (self.alpha * self.train_input.T.dot(self.deltas[0]))
-        self.weights[0] = self.weights[0] + (self.alpha * self.deltas[0])
+        #self.weights[0] = self.weights[0] + (self.alpha * self.deltas[0])
         if self.bias:
             self.bias_weights[0] = self.bias_weights[0] + (self.alpha * self.bias_outputs[0].T.dot(self.bias_deltas[0]))
 
@@ -482,7 +495,7 @@ nn = neural_network(in_nodes, 10,
                     out_func='softmax',
                     hl_sizes=500,
                     hl_functions='sigmoid',
-                    alpha=0.0001,
+                    alpha=0.05,
                     epochs=5, bias=False)
 
 start_time = time.time()
