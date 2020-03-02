@@ -380,12 +380,18 @@ class neural_network:
         #self.outputs[0][i] * np.mean(self.outputs[1][:,j] * error_gradient[:,j])
         #np.multiply(self.outputs[0][:,0], error_gradient[:,0])
         deltas = np.dot(self.outputs[0].T, error_gradient) / error_gradient.shape[0]
+        #out_delta = (1. / error_gradient.shape[0]) * np.matmul(self.outputs[0].T, error_gradient)
         #pdb.set_trace()
         #self.activation_func_prime(self.outputs[-1], self.a_f[-1])
         prior_error = error_gradient
         self.deltas.append(deltas)
 
-        """            
+        #pdb.set_trace()
+        dA1 = np.dot(error_gradient, self.weights[1].T)
+        next_error = dA1 * self.outputs[0] * self.activation_func_prime(self.outputs[0])
+        next_delta = np.matmul(self.train_input.T, next_error)
+        self.deltas.append(next_delta)
+        """      
         for layer in range(len(self.outputs)-2, -1, -1):
             layer_errors = np.dot(prior_error, self.weights[layer+1].T)
             errors_summed = np.sum(layer_errors, axis=0)
@@ -399,8 +405,10 @@ class neural_network:
                 layer_deltas = np.dot(self.train_input.T, layer_gradients)
             self.deltas.append(np.zeros(layer_deltas.shape))
             prior_errors = prior_error
-        self.deltas.reverse()
         """
+        
+        self.deltas.reverse()
+        
         
     def calculate_error(self, target, output):
         #Target is a #, output is an array of probabilities (softmax)
@@ -415,7 +423,7 @@ class neural_network:
             reshaped_target = np.zeros((rows, 10))
             reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
             #Cost - average loss of each output node
-            ce = -np.sum(reshaped_target * np.log(output + 1e-8), axis=1) / cols
+            ce = -np.mean(np.sum(reshaped_target * np.log(output + 1e-8), axis=1))
             return ce
 
     def error_derivative(self, target, output):
@@ -427,15 +435,15 @@ class neural_network:
 
         
     def update_weights(self):
-        """
+        
         #pdb.set_trace()
         for layer in range(len(self.weights)-1, -1, -1):
             #self.weights[layer] = self.weights[layer] + (self.alpha * self.outputs[layer-1].T.dot(self.deltas[layer]))
             self.weights[layer] = self.weights[layer] - (self.alpha * self.deltas[layer])
             if self.bias:
                     self.bias_weights[layer] = self.bias_weights[layer] - (self.alpha * self.bias_outputs[layer].T.dot(self.bias_deltas[layer]))
-        """
-        self.weights[-1] = self.weights[-1] - (self.alpha * self.deltas[-1])
+        
+        #self.weights[-1] = self.weights[-1] - (self.alpha * self.deltas[-1])
         #pdb.set_trace()            
         #self.weights[0] = self.weights[0] + (self.alpha * self.train_input.T.dot(self.deltas[0]))
         #self.weights[0] = self.weights[0] + (self.alpha * self.deltas[0])
@@ -450,8 +458,9 @@ class neural_network:
 
     def accuracy(self, target, predictions):
         #Get the correct predictions, then compare to target.)
-        correct_preds = np.ravel(predictions)==target
-        return np.sum(correct_preds) / len(target)
+       # pdb.set_trace()
+        correct_preds = np.sum(predictions.astype(int))
+        return correct_preds / len(target)
 
 
 
@@ -470,11 +479,8 @@ class neural_network:
             return self.outputs[-1] > self.threshold
         elif self.a_f[-1] == 'softmax':
             #return np.ravel(self.outputs[-1])==target
-            ret_tup = []
-            for output in range(len(self.outputs[-1])):
-                guess_right = np.argmax(self.outputs[-1][output])==target[output]
-                ret_tup.append((guess_right))
-            return np.array(ret_tup)
+            predicts = np.argmax(self.outputs[1], axis=1)
+            return predicts == target
 
 np.random.seed(0)
 rootDir = Path(sys.path[0]).parent
@@ -494,17 +500,22 @@ items, rows, cols = test_image_data.shape
 test_image_data = test_image_data.reshape(items, rows * cols)
 _, in_nodes = train_image_data.shape
 
-nn = neural_network(in_nodes, 10,
+alpha=0
+for i in range(16):
+    alpha += 0.01
+    print("Alpha: {}".format(alpha))
+    
+    start_time = time.time()
+    nn = neural_network(in_nodes, 10,
                     out_func='softmax',
                     hl_sizes=500,
                     hl_functions='sigmoid',
-                    alpha=0.05,
-                    epochs=500, bias=False)
-
-start_time = time.time()
-nn.train(train_input=train_image_data,
-         train_target=train_label_data,
-         test_input=test_image_data,
-         test_target=test_label_data)
+                    alpha=alpha,
+                    epochs=30, bias=False)
+    
+    nn.train(train_input=train_image_data,
+             train_target=train_label_data,
+             test_input=test_image_data,
+             test_target=test_label_data)
 
 print("--- %s seconds ---" % (time.time() - start_time))

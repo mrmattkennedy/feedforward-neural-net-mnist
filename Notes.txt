@@ -104,6 +104,7 @@ Main aspects
 		https://www.gormanalysis.com/blog/neural-networks-a-worked-example/
 		Where we get our derivatives:
 		https://stats.stackexchange.com/questions/235528/backpropagation-with-softmax-cross-entropy
+		https://zhenye-na.github.io/2018/09/09/build-neural-network-with-mnist-from-scratch.html
 	Update weights:
 		Need the inputs for each layer starting point of the weights (input and hidden), as well as the deltas for the output layers (l1_delta, l2_delta), the weights, and the learning rate (alpha).
 		Start at the end - weights between output layer and hidden layer = the weights + (learning rate * (the inputs transposed dot product multiplied by the output layer delta))
