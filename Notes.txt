@@ -13,6 +13,8 @@ Purpose of hidden layers:
 	
 	From https://towardsdatascience.com/exploring-activation-functions-for-neural-networks-73498da59b02:
 		784 input neurons, one for each pixel.
+	
+	https://towardsdatascience.com/neural-networks-from-scratch-easy-vs-hard-b26ddc2e89c7
 Output:
 	Machine mode or regressor mode
 		Machine Mode returns a class label (one node, unless softmax, then one per class label)

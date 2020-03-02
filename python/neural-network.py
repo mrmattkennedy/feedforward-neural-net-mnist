@@ -2,520 +2,239 @@ import pdb
 import sys
 import math
 import time
-import traceback
+import argparse
 import idx2numpy
 import numpy as np
 from pathlib import Path
-from sklearn.datasets import make_moons
-from sklearn.model_selection import train_test_split
 
 
-class neural_network:
+def init_params():
+    parser = argparse.ArgumentParser()
+
+    # hyperparameters setting
+    parser.add_argument('--lr', type=float, default=0.5, help='learning rate')
+    parser.add_argument('--epochs', type=int, default=50,
+                        help='number of epochs to train')
+    parser.add_argument('--n_x', type=int, default=784, help='number of inputs')
+    parser.add_argument('--n_h', type=int, default=64,
+                        help='number of hidden units')
+    parser.add_argument('--beta', type=float, default=0.9,
+                        help='parameter for momentum')
+    parser.add_argument('--batch_size', type=int,
+                        default=500, help='input batch size')
+    return parser.parse_args()
+
+def init_data():
+    rootDir = Path(sys.path[0]).parent
+
+    #Load data from idx3 files
+    train_images = str(rootDir) + "\\MNIST data\\train-images.idx3-ubyte"
+    train_label = str(rootDir) + "\\MNIST data\\train-labels.idx1-ubyte"
+    test_images = str(rootDir) + "\\MNIST data\\t10k-images.idx3-ubyte"
+    test_label = str(rootDir) + "\\MNIST data\\t10k-labels.idx1-ubyte"
+
+    #Put data to numpy arrays
+    x_train = idx2numpy.convert_from_file(train_images)
+    x_test = idx2numpy.convert_from_file(train_label)
+    y_train = idx2numpy.convert_from_file(test_images)
+    y_test = idx2numpy.convert_from_file(test_label)
+
+    
+    #Stack for splitting to test/train sets
+    X = np.vstack((x_train, y_train))
+    y = np.hstack((x_test, y_test))
+
+    # one-hot encoding
+    digits = 10
+    rows = y.shape[0]
+    Y_new = np.zeros((rows, digits))
+    Y_new[np.arange(Y_new.shape[0]), y]=1
+
+    #Split the data sets
+    m = 60000
+    m_test = X.shape[0] - m
+    X_train, X_test = X[:m], X[m:]
+    Y_train, Y_test = Y_new[:m], Y_new[m:]
+
+   # return X_train, X_test, Y_train, Y_test
+    #pdb.set_trace()
+    digits = 10
+    rows = x_test.shape[0]
+    Y_new = np.zeros((rows, digits))
+    Y_new[np.arange(Y_new.shape[0]), x_test]=1
+
+    rows = y_test.shape[0]
+    Y_new_t = np.zeros((rows, digits))
+    Y_new_t[np.arange(Y_new_t.shape[0]), y_test]=1
+    return x_train, Y_new, y_train, Y_new_t
+
+
+def init_weights(opt):
+    weights = {"W1": np.random.randn(opt.n_x, opt.n_h) * np.sqrt(1. / opt.n_h),
+          "b1": np.random.randn(1, opt.n_h) * np.sqrt(1. / opt.n_h),
+          "W2": np.random.randn(opt.n_h, 10) * np.sqrt(1. / 10),
+          "b2": np.random.randn(1, 10) * np.sqrt(1. / 10)}
+    
+    return weights
+
+
+
+def train():
+    X_train, X_test, Y_train, Y_test = init_data()
+    opt = init_params()
+    weights = init_weights(opt)
+    dW1, db1, dW2, db2 = 0, 0, 0, 0
+    for i in range(opt.epochs):
+
+        # shuffle training set
+        permutation = np.random.permutation(7000)
+        #X_train_shuffled = X_train[permutation]
+        #Y_train_shuffled = Y_train[permutation]
+        #pdb.set_trace()
+
+        #for j in range(100):
+            # get mini-batch
+        #begin = j * opt.batch_size
+        #end = begin + opt.batch_size
+        
+        #X = X_train_shuffled[begin:end]
+        #pdb.set_trace()
+        X = X_train.reshape((X_train.shape[0], X_train.shape[1] * X_train.shape[2]))
+        #Y = Y_train_shuffled[begin:end]
+        Y = X_test
+        #m_batch = end - begin
+
+        # forward and backward
+        cache = feed_forward(X, weights)
+        grads = back_propagate(X, Y, weights, cache, X_train.shape[0])
+
+        # with momentum (optional)
+        """
+        dW1 = (opt.beta * dW1 + (1. - opt.beta) * grads["dW1"])
+        db1 = (opt.beta * db1 + (1. - opt.beta) * grads["db1"])
+        dW2 = (opt.beta * dW2 + (1. - opt.beta) * grads["dW2"])
+        db2 = (opt.beta * db2 + (1. - opt.beta) * grads["db2"])
+        """
+        dW1 = grads["dW1"]
+        db1 = grads["db1"]
+        dW2 = grads["dW2"]
+        db2 = grads["db2"]
+        #pdb.set_trace()
+        # gradient descent
+        weights["W1"] = weights["W1"] - opt.lr * dW1
+        weights["b1"] = weights["b1"] - opt.lr * db1
+        weights["W2"] = weights["W2"] - opt.lr * dW2
+        weights["b2"] = weights["b2"] - opt.lr * db2
+
+        # forward pass on training set
+        #pdb.set_trace()
+        X = X_train.reshape((X_train.shape[0], X_train.shape[1] * X_train.shape[2]))
+        cache = feed_forward(X, weights)
+        train_loss = compute_loss(X_test, cache["A2"])
+        #pdb.set_trace()
+        train_accuracy = compute_accuracy(X_test, cache["A2"])
+
+        # forward pass on test set
+        #pdb.set_trace()
+        X = Y_train.reshape((Y_train.shape[0], Y_train.shape[1] * Y_train.shape[2]))
+        cache = feed_forward(X, weights)
+        test_loss = compute_loss(Y_test, cache["A2"])
+        test_accuracy = compute_accuracy(Y_test, cache["A2"])
+        print("Epoch {}: training loss = {}, test loss = {}".format(
+            i + 1, round(train_loss, 2), round(test_loss, 2)))
+        print("Training accuracy = {}, Test accuracy = {}".format(
+            round(train_accuracy, 2), round(test_accuracy, 2)))
+        
+def feed_forward(X, weights):
     """
-    Neural Network class
+    feed forward network: 2 - layer neural net
 
-    Instance variables
-    ------------------
-    Input size : (self.in_size)
-        int, size of the input layer
-    Output size : (self.out_size)
-        int, size of the output layer
-    Weights : (self.weights)
-        list(floats), all weights for each layer.
-    Learning rate : (self.alpha)
-        float, learning rate
-    Epochs : (self.epochs)
-        int, epochs
-    Threshold : (self.threshold)
-        float, acceptance threshold
-    Hidden layer sizes : (self.hl_sizes)
-        tuple(int) : sizes for each hidden layer
-    Activation functions (self.a_f)
-        list(str), list of strings of activation functions, with output last
-        
-    Constructor parameters
-    -----------
-    input nodes : in_size
-        int, number of input nodes
-    output nodes : out_size
-        int, number of output nodes
-    alpha : alpha
-        int, learning rate (default is 0.05)
-    epochs : epochs
-        int, number of epochs
-    threshold : threshold
-        float, acceptance threshold
-    output function : out_func
-        str, name of the output function (default is softmax)
-    hidden layers sizes: hl_sizes
-        tuple(int), hidden layer sizes (can be None)
-    hidden layer functions : hl_functions
-        tuple(str), activation function for each hidden layer (ignored if h_l_count is None)
+    inputs:
+        params: dictionay a dictionary contains all the weights and biases
 
-    Global variables
-    ----------------
-    Function keywords : funcs
-        List(str), allowed function names
+    return:
+        cache: dictionay a dictionary contains all the fully connected units and activations
     """
-    funcs = ['sigmoid', 'tanh', 'softmax', '']
+    cache = {}
+    
+    # Z1 = W1.dot(x) + b1
+    cache["Z1"] = np.dot(X, weights["W1"]) + weights["b1"]
+    # A1 = sigmoid(Z1)
+    cache["A1"] = sigmoid(cache["Z1"])
+
+    # Z2 = W2.dot(A1) + b2
+    cache["Z2"] = np.dot(cache["A1"], weights["W2"]) + weights["b2"]
+
+    # A2 = softmax(Z2)
+    cache["A2"] = np.exp(cache["Z2"]) / np.sum(np.exp(cache["Z2"]), axis=0)
+    
+    return cache
+
+
+def sigmoid(z):
+    e_max = 709
+    z = np.where(z > e_max, e_max, z)
+    z = np.where(z < -e_max, -e_max, z)
+    return 1/(1 + np.exp(-z))
+
+def sigmoid_prime(s):
+    return s * (1 -s) 
+
+        
+
+def back_propagate(X, Y, weights, cache, batch_size):
+    """
+    back propagation
+
+    inputs:
+        params: dictionay a dictionary contains all the weights and biases
+        cache: dictionay a dictionary contains all the fully connected units and activations
+
+    return:
+        grads: dictionay a dictionary contains the gradients of corresponding weights and biases
+    """
+    #pdb.set_trace()
+    # error at last layer
+    dZ2 = cache["A2"] - Y
+
+    # gradients at last layer (Py2 need 1. to transform to float)
+    dW2 = (1. / batch_size) * np.dot(cache["A1"].T, dZ2)
+    db2 = (1. / batch_size) * np.sum(dZ2, axis=0, keepdims=True)
+
+    # back propgate through first layer
+    dA1 = np.dot(dZ2, weights["W2"].T)
+    dZ1 = dA1 * cache['A1'] * sigmoid_prime(cache['A1'])
+
+    # gradients at first layer (Py2 need 1. to transform to float)
+    dW1 = (1. / batch_size) * np.dot(dZ1.T, X).T
+    db1 = (1. / batch_size) * np.sum(dZ1, axis=0, keepdims=True)
+
+    grads = {"dW1": dW1, "db1": db1, "dW2": dW2, "db2": db2}
+
+    return grads
 
 
     
-    def __init__(self, in_size, out_size,
-                 alpha=0.05, epochs=30000, threshold=0.5, bias=True,
-                 out_func=None, hl_sizes=None, hl_functions=None):
-        
-        #Verify sizes are numbers above 0
-        assert type(in_size) is int, "Size of input layer needs to be an int"
-        assert type(out_size) is int, "Size of output layer needs to be an int"
-        assert in_size >= 1, "Size of input layer must be a positive integer"
-        assert out_size >= 1, "Size of output layer must be a positive integer"
-        assert out_func is None or out_func in neural_network.funcs, "Function must be one of the following: " + ", ".join(neural_network.funcs)
-        
-        #Make sure sizes are provided if functions are
-        assert not (hl_sizes is None and hl_functions is not None), "Must have sizes with functions"
-        if (type(hl_sizes) is not int and type(hl_functions) is not int):
-            assert not (hl_sizes is not None and hl_functions is not None and len(hl_sizes) < len(hl_functions)), "Sizes must be greater than or equal to functions"
-        else:
-            assert not (type(hl_sizes) is int and type(hl_functions) is tuple), "Sizes must be greater than or equal to functions"
+def compute_loss(Y, Y_hat):
+    """
+    compute loss function
+    """
+    #pdb.set_trace()
+    L_sum = np.sum(np.multiply(Y, np.log(Y_hat)))
+    m = Y.shape[1]
+    L = -(1./m) * L_sum
 
-        #Check each individual size
-        if hl_sizes is not None:
-            #See if sizes is int (single value), tuple or list. If not, raise
-            if type(hl_sizes) is int:
-                self.hl_sizes = ((hl_sizes,))
-            elif type(hl_sizes) is tuple or type(hl_sizes) is list:
-                self.hl_sizes = hl_sizes
-            else:
-                raise TypeError("Sizes must be either an int (single value), or a list/tuple.")
-            
-            #See if each size is int and >= 1
-            for size in self.hl_sizes:
-                try:
-                    size = int(size)
-                    assert size >= 1, "Hidden layer size must be int greater than 0"
-                except ValueError:
-                    raise ValueError('Size must be of type int')
-                
-            #See if functions is str (single value), tuple or list. If not, raise
-            if hl_functions is not None:
-                if type(hl_functions) is str:
-                    hl_functions = ((hl_functions,))
-                elif type(hl_functions) is tuple or type(hl_functions) is list:
-                    pass
-                else:
-                    raise TypeError("Functions must be either a str (single value), or a list/tuple.")
-                
-                #See if each function is str and part of predefined list
-                for a_f in hl_functions:
-                    assert type(a_f) is str, "Function must be of type str"
-                    assert a_f is None or a_f in neural_network.funcs, "Function must be one of the following: " + ", ".join(neural_network.funcs)
+    return L
 
-        #Assign to instance variables
-        self.in_size = in_size
-        self.out_size = out_size
+def compute_accuracy(Y, Y_hat):
+    #Get the correct predictions, then compare to target.)
+    Y_hat = np.argmax(Y_hat, axis=1)
+    Y = np.argmax(Y, axis=1)
+    correct_preds = Y_hat == Y
+    correct_preds = np.sum(correct_preds.astype(int))
+    return correct_preds / len(Y)
 
-        #Set hyperparameters
-        self.alpha = alpha
-        self.alpha_max = 0.01
-        self.alpha_adjust_factor = 10
-        
-        self.epochs = epochs
-        self.threshold = threshold
-        self.bias = bias
-        self.e_max = 709
-
-        self.loss = 'cross-entropy'
-        #Create list of activation functions
-        self.a_f = list()
-        if hl_functions is not None:
-            for a_f in hl_functions:
-                self.a_f.append(a_f)
-        if out_func is not None:
-            self.a_f.append(out_func)
-                
-        #Create weights
-        try:
-            self.create_architecture(self.in_size, self.out_size, self.hl_sizes)
-        except AttributeError:
-            self.create_architecture(self.in_size, self.out_size)
-
-
-    def train(self, train_input, train_target, test_input, test_target):
-        self.train_input = train_input
-        self.train_target = train_target
-        self.test_input = test_input
-        self.test_target = test_target
-
-        for j in range(self.epochs + 1):
-            
-            # First, feed forward through the hidden layer
-            self.feed_forward(self.train_input)
-            
-            # Then, error back propagation from output to input
-            self.back_propagation()
-
-            # Finally, updating the weights of the network
-            self.update_weights()
-
-            # From time to time, reporting the results
-            if (j % 5) == 0:
-                #self.alpha = self.alpha * self.alpha_adjust_factor if self.alpha < self.alpha_max else self.alpha_max
-               # print('Alpha is {}'.format(self.alpha))
-                train_error = np.mean(np.abs(self.output_error))
-                print('Epoch {:5}'.format(j), end=' - ')
-                print('error: {:0.4f}'.format(train_error), end= ' - ')
-
-                train_accuracy = self.accuracy(target=self.train_target, predictions=(self.get_predictions(self.train_target)))
-                test_preds = self.predict(self.test_input)
-                test_accuracy = self.accuracy(target=self.test_target, predictions=test_preds)
-
-                print('acc: train {:0.3f}'.format(train_accuracy), end= ' | ')
-                print('test {:0.3f}'.format(test_accuracy))
-
-            #print('Epoch {} done'.format(j))
-    def init_weights(self, inp, out):
-        #randn creates random element, divide by squareroot of inp for randomness
-        if self.bias:
-            return np.random.randn(inp+1, out) / np.sqrt(inp)
-        else:
-            return np.random.randn(inp, out) / np.sqrt(inp)
-    
-    
-    def create_architecture(self, in_layer, out_layer, hidden_layers=None, random_seed=0):
-        """
-        Creates the architecture for the network.
-        Sets the random seed for numpy, then gets the sizes for each layer.
-        Next, creates a temporary architecture list, with the current
-        and next list sizes as each element.
-        Last, initializes random weights of size inp, out.
-
-        Parameters
-        ----------
-        in_layer : int
-            Size of the input layer
-        out_layer : int
-            Size of the output layer
-        hidden_layers : tuple(ints)
-            Size of the hidden layers, if any
-        random_seed : int
-            Random seed for numpy
-        """
-        
-        #Create a random seed
-        np.random.seed(random_seed)
-        
-        #Size of each layer. X.shape[1] is the number of inputs
-        layers = tuple((in_layer,))
-        if hidden_layers is not None:
-            for size in hidden_layers:
-                layers += tuple((size,))
-        layers += tuple((out_layer,))
-        
-        #Number of input/output for each layer. Takes first num, next num, combines, and continues
-        arch = list(zip(layers[:-1], layers[1:]))
-        #Create list of weights
-        self.weights = [self.init_weights(inp, out) for inp, out in arch]
-            
-
-        
-    def feed_forward(self, inputs):
-        #Create copy of test data
-        i_c = inputs.copy()
-            
-        #Empty return list
-        out = list()
-        
-        #get activation function range
-        a_f_range = len(self.weights) - len(self.a_f)
-
-        
-        for W in range(len(self.weights)):
-            #If bias exists, add an input for each bias
-            
-            if self.bias:
-                rows, _ = inputs.shape
-                ones = np.ones((rows, 1))
-                i_c = np.hstack((i_c, ones))
-            
-            #Dot product of input value and weight
-            #pdb.set_trace()
-            z = np.dot(i_c, self.weights[W])
-
-            #Check if there is an activation function for this layer
-            if len(self.a_f) > 0 and W >= a_f_range and self.a_f[W-len(self.a_f)]:
-                #Input is now equal to activation of output
-                i_c = self.activation_func(z, self.a_f[W-len(self.a_f)])
-            else:
-                i_c = z
-                
-            #Append new input to return
-            out.append(i_c)
-            
-        self.outputs = out
-
-
-        
-    def activation_func(self, input_values, name='sigmoid'):
-        """
-        Runs value through the activation function for a neuron.
-        Defaults to sigmoid function.
-
-        Parameters
-        ----------
-        name : string
-            Name of the activation function.
-        input_values : np.array
-            Current input values in the network.
-
-        Returns
-        -------
-        np.array output_activated
-            The array of inputs ran through the activation
-            function as a list.
-        """
-
-        if name == 'sigmoid':
-            input_values = np.where(input_values > self.e_max, self.e_max, input_values)
-            input_values = np.where(input_values < -self.e_max, -self.e_max, input_values)
-            return 1/(1 + np.exp(-input_values))
-        elif name == 'tanh':
-            return np.tanh(input_values)
-        elif name == 'softmax':
-            t = np.exp(input_values)
-            a = np.exp(input_values) / np.sum(t, axis=1).reshape(-1,1)
-            return a
-
-
-    def activation_func_prime(self, input_values, name='sigmoid'):
-        if name == 'sigmoid':
-            return input_values * (1 - input_values)
-        elif name == 'softmax':
-            #Get the diagonal
-            rows, cols = input_values.shape            
-            out = np.zeros((rows, cols, cols))
-            out[:, np.arange(cols), np.arange(cols)] = input_values
-
-            #Get the dot product of 2nd and 3rd axes
-            vals = np.reshape(input_values, (rows, cols, 1))
-            vals_T = vals.reshape((rows, 1, cols))
-            prod = np.array([np.dot(vals[row], vals_T[row]) for row in range(rows)])
-                            
-            return out - prod
-
-            
-    
-    def back_propagation(self):
-        """
-        self.deltas = list()
-        #pdb.set_trace()
-        
-        if self.bias:
-            
-            self.bias_outputs = list()
-            self.bias_deltas = list()
-            self.bias_weights = list()
-            
-            for weight in range(len(self.weights)):
-                self.bias_weights.append(self.weights[weight][-1])
-                self.weights[weight] = np.delete(self.weights[weight], -1, 0)
-                
-        #Get error or cost for this set
-        pdb.set_trace()
-        self.output_error = self.calculate_error(self.train_target, self.outputs[-1])
-
-        #Cost times derivative is gradient
-        output_delta = self.output_error * self.activation_func_prime(self.outputs[-1])
-        
-        #For every available output down, need to get the error, and delta.
-        #Start at 2nd to last output (last hidden layer), and work backwords
-        prior_delta = output_delta
-        self.deltas.append(output_delta)
-
-        
-        if self.bias:
-            #Need to make inputs of shape
-            rows, cols = self.outputs[-1].shape
-            ones = np.ones((rows, cols))
-            bias_outputs = ones * self.bias_weights[-1]
-            bias_layer_delta = self.output_error * self.activation_func_prime(bias_outputs)
-            self.bias_outputs.append(bias_outputs)
-            self.bias_deltas.append(bias_layer_delta)
-             
-        for layer in range(len(self.outputs) - 2, -1, -1):                
-            layer_error = prior_delta.dot(self.weights[layer + 1].T)
-            layer_delta = layer_error * self.activation_func_prime(self.outputs[layer])
-
-            
-            #Backpropagate to bias if included
-            if self.bias:
-                #Need to make inputs of shape
-                rows, cols = self.outputs[layer].shape
-                ones = np.ones((rows, cols))
-                bias_outputs = ones * self.bias_weights[layer]
-                bias_layer_delta = layer_error * self.activation_func_prime(bias_outputs)
-                self.bias_outputs.append(bias_outputs)
-                self.bias_deltas.append(bias_layer_delta)
-             
-            prior_delta = layer_delta
-            self.deltas.append(layer_delta)
-            
-        #Put them in order
-        self.deltas.reverse()
-        if self.bias:
-            self.bias_deltas.reverse()
-            self.bias_outputs.reverse()
-        """
-        self.deltas = list()
-        self.output_error = self.calculate_error(self.train_target, self.outputs[-1])
-        error_gradient = self.error_derivative(self.train_target, self.outputs[-1])
-        #np.dot(error_gradient[0].reshape(-1,1), self.outputs[0][0].reshape(1, 500))
-        #rows = error_gradient.shape[0]
-        #cols = self.outputs[0][0].shape[0]
-       # out_delta = np.array([np.dot(error_gradient[row].reshape(-1,1), self.outputs[0][row].reshape(1, cols)) for row in range(rows)])
-        #out_delta = np.mean(out_delta, axis=0)
-        #wi,j = yi * (output(j) - target(j))
-        #weights from node 1 in hidden layer to output node 10:
-        #self.outputs[0](col 1) * (mean(error_gradient[9]))
-        #self.outputs[0][i] * np.mean(self.outputs[1][:,j] * error_gradient[:,j])
-        #np.multiply(self.outputs[0][:,0], error_gradient[:,0])
-        deltas = np.dot(self.outputs[0].T, error_gradient) / error_gradient.shape[0]
-        #out_delta = (1. / error_gradient.shape[0]) * np.matmul(self.outputs[0].T, error_gradient)
-        #pdb.set_trace()
-        #self.activation_func_prime(self.outputs[-1], self.a_f[-1])
-        prior_error = error_gradient
-        self.deltas.append(deltas)
-
-        #pdb.set_trace()
-        dA1 = np.dot(error_gradient, self.weights[1].T)
-        next_error = dA1 * self.outputs[0] * self.activation_func_prime(self.outputs[0])
-        next_delta = np.matmul(self.train_input.T, next_error)
-        self.deltas.append(next_delta)
-        """      
-        for layer in range(len(self.outputs)-2, -1, -1):
-            layer_errors = np.dot(prior_error, self.weights[layer+1].T)
-            errors_summed = np.sum(layer_errors, axis=0)
-            if layer != 0:
-                layer_deltas = np.dot(self.activation_func_prime(self.outputs[layer], self.a_f[layer]),
-                                      errors_summed.reshape(-1, 1)) * self.outputs[layer-1]
-            else:
-               #pdb.set_trace()
-                layer_gradients = np.multiply(self.activation_func_prime(self.outputs[layer], self.a_f[layer]),
-                                      errors_summed)
-                layer_deltas = np.dot(self.train_input.T, layer_gradients)
-            self.deltas.append(np.zeros(layer_deltas.shape))
-            prior_errors = prior_error
-        """
-        
-        self.deltas.reverse()
-        
-        
-    def calculate_error(self, target, output):
-        #Target is a #, output is an array of probabilities (softmax)
-        if self.loss == 'mse':
-            rows, cols = output.shape
-            reshaped_target = np.zeros((rows, 10))
-            reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
-            
-            return (np.square(reshaped_target - output)).mean(axis=1)
-        elif self.loss == 'cross-entropy':
-            rows, cols = output.shape
-            reshaped_target = np.zeros((rows, 10))
-            reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
-            #Cost - average loss of each output node
-            ce = -np.mean(np.sum(reshaped_target * np.log(output + 1e-8), axis=1))
-            return ce
-
-    def error_derivative(self, target, output):
-        if self.loss == 'cross-entropy':
-            rows, cols = output.shape
-            reshaped_target = np.zeros((rows, 10))
-            reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
-            return output - reshaped_target
-
-        
-    def update_weights(self):
-        
-        #pdb.set_trace()
-        for layer in range(len(self.weights)-1, -1, -1):
-            #self.weights[layer] = self.weights[layer] + (self.alpha * self.outputs[layer-1].T.dot(self.deltas[layer]))
-            self.weights[layer] = self.weights[layer] - (self.alpha * self.deltas[layer])
-            if self.bias:
-                    self.bias_weights[layer] = self.bias_weights[layer] - (self.alpha * self.bias_outputs[layer].T.dot(self.bias_deltas[layer]))
-        
-        #self.weights[-1] = self.weights[-1] - (self.alpha * self.deltas[-1])
-        #pdb.set_trace()            
-        #self.weights[0] = self.weights[0] + (self.alpha * self.train_input.T.dot(self.deltas[0]))
-        #self.weights[0] = self.weights[0] + (self.alpha * self.deltas[0])
-        if self.bias:
-            self.bias_weights[0] = self.bias_weights[0] + (self.alpha * self.bias_outputs[0].T.dot(self.bias_deltas[0]))
-
-        if self.bias:
-            for layer in range(len(self.weights)):
-                self.bias_weights[layer] = np.mean(self.bias_weights[layer], axis=0)
-                self.weights[layer] = np.vstack((self.weights[layer], self.bias_weights[layer]))
-
-
-    def accuracy(self, target, predictions):
-        #Get the correct predictions, then compare to target.)
-       # pdb.set_trace()
-        correct_preds = np.sum(predictions.astype(int))
-        return correct_preds / len(target)
-
-
-
-    def predict(self, inputs):
-        #pdb.set_trace()
-        
-        self.feed_forward(inputs)
-        preds = self.get_predictions(target=self.test_target).astype(int)
-        return preds
-
-
-
-    def get_predictions(self, target=None):
-        #pdb.set_trace()
-        if len(self.a_f) == 0 or self.a_f[-1] == 'sigmoid':
-            return self.outputs[-1] > self.threshold
-        elif self.a_f[-1] == 'softmax':
-            #return np.ravel(self.outputs[-1])==target
-            predicts = np.argmax(self.outputs[1], axis=1)
-            return predicts == target
-
-np.random.seed(0)
-rootDir = Path(sys.path[0]).parent
-train_images = str(rootDir) + "\\MNIST test data\\train-images.idx3-ubyte"
-train_label = str(rootDir) + "\\MNIST test data\\train-labels.idx1-ubyte"
-test_images = str(rootDir) + "\\MNIST test data\\t10k-images.idx3-ubyte"
-test_label = str(rootDir) + "\\MNIST test data\\t10k-labels.idx1-ubyte"
-
-train_image_data = idx2numpy.convert_from_file(train_images)
-train_label_data = idx2numpy.convert_from_file(train_label)
-test_image_data = idx2numpy.convert_from_file(test_images)
-test_label_data = idx2numpy.convert_from_file(test_label)
-
-items, rows, cols = train_image_data.shape
-train_image_data = train_image_data.reshape(items, rows * cols)
-items, rows, cols = test_image_data.shape
-test_image_data = test_image_data.reshape(items, rows * cols)
-_, in_nodes = train_image_data.shape
-
-alpha=0
-for i in range(16):
-    alpha += 0.01
-    print("Alpha: {}".format(alpha))
-    
-    start_time = time.time()
-    nn = neural_network(in_nodes, 10,
-                    out_func='softmax',
-                    hl_sizes=500,
-                    hl_functions='sigmoid',
-                    alpha=alpha,
-                    epochs=30, bias=False)
-    
-    nn.train(train_input=train_image_data,
-             train_target=train_label_data,
-             test_input=test_image_data,
-             test_target=test_label_data)
-
+# parse the arguments
+start_time = time.time()
+train()
 print("--- %s seconds ---" % (time.time() - start_time))
