@@ -159,9 +159,9 @@ class neural_network:
             self.update_weights()
 
             # From time to time, reporting the results
-            if (j % 1) == 0:
+            if (j % 5) == 0:
                 #self.alpha = self.alpha * self.alpha_adjust_factor if self.alpha < self.alpha_max else self.alpha_max
-                print('Alpha is {}'.format(self.alpha))
+               # print('Alpha is {}'.format(self.alpha))
                 train_error = np.mean(np.abs(self.output_error))
                 print('Epoch {:5}'.format(j), end=' - ')
                 print('error: {:0.4f}'.format(train_error), end= ' - ')
@@ -173,7 +173,7 @@ class neural_network:
                 print('acc: train {:0.3f}'.format(train_accuracy), end= ' | ')
                 print('test {:0.3f}'.format(test_accuracy))
 
-            print('Epoch {} done'.format(j))
+            #print('Epoch {} done'.format(j))
     def init_weights(self, inp, out):
         #randn creates random element, divide by squareroot of inp for randomness
         if self.bias:
@@ -382,12 +382,13 @@ class neural_network:
         deltas = np.dot(self.outputs[0].T, error_gradient) / error_gradient.shape[0]
         #pdb.set_trace()
         #self.activation_func_prime(self.outputs[-1], self.a_f[-1])
-        prior_deltas = deltas
-        self.deltas.append(prior_deltas)
+        prior_error = error_gradient
+        self.deltas.append(deltas)
 
+        """            
         for layer in range(len(self.outputs)-2, -1, -1):
-            layer_errors = prior_deltas * self.weights[layer+1]
-            errors_summed = np.sum(layer_errors, axis=1)
+            layer_errors = np.dot(prior_error, self.weights[layer+1].T)
+            errors_summed = np.sum(layer_errors, axis=0)
             if layer != 0:
                 layer_deltas = np.dot(self.activation_func_prime(self.outputs[layer], self.a_f[layer]),
                                       errors_summed.reshape(-1, 1)) * self.outputs[layer-1]
@@ -396,10 +397,10 @@ class neural_network:
                 layer_gradients = np.multiply(self.activation_func_prime(self.outputs[layer], self.a_f[layer]),
                                       errors_summed)
                 layer_deltas = np.dot(self.train_input.T, layer_gradients)
-            self.deltas.append(layer_deltas)
-            prior_deltas = layer_deltas
+            self.deltas.append(np.zeros(layer_deltas.shape))
+            prior_errors = prior_error
         self.deltas.reverse()
-
+        """
         
     def calculate_error(self, target, output):
         #Target is a #, output is an array of probabilities (softmax)
@@ -426,13 +427,15 @@ class neural_network:
 
         
     def update_weights(self):
+        """
         #pdb.set_trace()
         for layer in range(len(self.weights)-1, -1, -1):
             #self.weights[layer] = self.weights[layer] + (self.alpha * self.outputs[layer-1].T.dot(self.deltas[layer]))
-            self.weights[layer] = self.weights[layer] + (self.alpha * self.deltas[layer])
+            self.weights[layer] = self.weights[layer] - (self.alpha * self.deltas[layer])
             if self.bias:
-                    self.bias_weights[layer] = self.bias_weights[layer] + (self.alpha * self.bias_outputs[layer].T.dot(self.bias_deltas[layer]))
-
+                    self.bias_weights[layer] = self.bias_weights[layer] - (self.alpha * self.bias_outputs[layer].T.dot(self.bias_deltas[layer]))
+        """
+        self.weights[-1] = self.weights[-1] - (self.alpha * self.deltas[-1])
         #pdb.set_trace()            
         #self.weights[0] = self.weights[0] + (self.alpha * self.train_input.T.dot(self.deltas[0]))
         #self.weights[0] = self.weights[0] + (self.alpha * self.deltas[0])
@@ -496,7 +499,7 @@ nn = neural_network(in_nodes, 10,
                     hl_sizes=500,
                     hl_functions='sigmoid',
                     alpha=0.05,
-                    epochs=5, bias=False)
+                    epochs=500, bias=False)
 
 start_time = time.time()
 nn.train(train_input=train_image_data,

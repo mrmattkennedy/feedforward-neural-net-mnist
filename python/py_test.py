@@ -20,7 +20,23 @@ y = np.array(([1, 0],
               [1, 0],
               [0, 1],
               [0, 1]))
-print(np.dot((h_l_bias).T, yhat-y))
-print(h_l_bias.T)
-print()
-print(yhat-y)
+ce_grad = yhat - y
+results = np.zeros((3,2))
+for row in range(4):
+    for weight in range(2):
+        for node in range(3):
+            results[node][weight] += ce_grad[node][weight] * h_l_bias[row][node]
+print(results)
+print(results/4)
+#print(np.dot((h_l_bias).T, yhat-y))
+#print(h_l_bias.T)
+#print()
+#print(yhat-y)
+#print(yhat - y)
+"""
+From h0 to o0, x20 * (output 0 - target 0)
+1 * (1 - 0.49865)
+From h1 to o0,
+0.39558 * (1 - 0.0.49826)
+
+"""
