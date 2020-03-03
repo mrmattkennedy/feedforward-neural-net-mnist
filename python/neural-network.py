@@ -13,12 +13,12 @@ def init_params():
     parser = argparse.ArgumentParser()
 
     # hyperparameters setting
-    parser.add_argument('--alpha', type=float, default=0.03, help='learning rate')
+    parser.add_argument('--alpha', type=float, default=0.001, help='learning rate')
     parser.add_argument('--i_alpha', type=float, default=0.03,
                         help='initial learning rate')
     parser.add_argument('--decay', type=float, default=0.02,
                         help='learning rate decay')
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('--epochs', type=int, default=50,
                         help='number of epochs to train')
     parser.add_argument('--n_x', type=int, default=784, help='number of inputs')
     parser.add_argument('--n_h', type=int, default=400,
@@ -29,23 +29,26 @@ def init_params():
                         help='parameter for momentum')
     parser.add_argument('--batch_size', type=int,
                         default=1000, help='input batch size')
-    parser.add_argument('--batch_iters', type=int,
+    parser.add_argument('--batches', type=int,
                         default=60, help='batch iterations')
     return parser.parse_args()
 
 
 def init_data():
+    #Get file paths
     rootDir = Path(sys.path[0]).parent
     train_images = str(rootDir) + "\\MNIST data\\train-images.idx3-ubyte"
     train_label = str(rootDir) + "\\MNIST data\\train-labels.idx1-ubyte"
     test_images = str(rootDir) + "\\MNIST data\\t10k-images.idx3-ubyte"
     test_label = str(rootDir) + "\\MNIST data\\t10k-labels.idx1-ubyte"
 
+    #Read in from file to numpy array
     train_image_data = idx2numpy.convert_from_file(train_images)
     train_label_data = idx2numpy.convert_from_file(train_label)
     test_image_data = idx2numpy.convert_from_file(test_images)
     test_label_data = idx2numpy.convert_from_file(test_label)
 
+    #Reshaped the inputs from 3D to 2D
     items, rows, cols = train_image_data.shape
     train_image_data = train_image_data.reshape(items, rows * cols)
     items, rows, cols = test_image_data.shape
@@ -55,10 +58,10 @@ def init_data():
 
 def init_weights(arch):
     weights = {
-        "W1" : np.random.randn(arch[0][0], arch[0][1]) / np.sqrt(arch[0][0]),
-        "b1" : np.random.randn(1, arch[0][1]) / np.sqrt(arch[0][0]),
-        "W2" : np.random.randn(arch[1][0], arch[1][1]) / np.sqrt(arch[1][0]),
-        "b2" : np.random.randn(1, arch[1][1]) / np.sqrt(arch[1][1])
+        "W1" : np.random.randn(arch[0][0], arch[0][1]) * np.sqrt(1 / arch[0][0]),
+        "b1" : np.random.randn(1, arch[0][1]) * np.sqrt(1 / arch[0][0]),
+        "W2" : np.random.randn(arch[1][0], arch[1][1]) * np.sqrt(1 / arch[1][0]),
+        "b2" : np.random.randn(1, arch[1][1]) * np.sqrt(1 / arch[1][1])
         }
     
     return weights
@@ -74,7 +77,7 @@ def init_velocities(arch):
     return velocities
     
 def train():
-    #Get opts, data, and weights
+    #Get opts, data, weights, velocities
     train_input, train_target, test_input, test_target = init_data()
     arch = ((opts.n_x, opts.n_h), (opts.n_h, opts.n_o))
     weights = init_weights(arch)
@@ -84,12 +87,12 @@ def train():
     for j in range(opts.epochs + 1):
 
         #Get a random mini batch and shuffle up the original data set. Update alpha
-        permutation = np.random.permutation(opts.batch_size * opts.batch_iters)
+        permutation = np.random.permutation(opts.batch_size * opts.batches)
         X_epoch = train_input[permutation]
         y_epoch = train_target[permutation]
         #opts.alpha = opts.i_alpha * (1 / (1 + opts.decay * j))
 
-        for k in range(opts.batch_iters):
+        for k in range(opts.batches):
             #Move through the data set according to the batch size
             begin = k * opts.batch_size
             end = begin + opts.batch_size
@@ -162,10 +165,12 @@ def sigmoid(z):
     z = np.clip(z, -500, 500)
     return 1/(1 + np.exp(-z))
 
-
 def sigmoid_prime(z):
     return z * (1 - z)
 
+def relu(z):
+	return np.absolute(z)
+    
 def softmax(z):
    # z = np.clip(z, -709, 709)
     t = np.exp(z)
@@ -176,31 +181,59 @@ def softmax(z):
 
 def back_propagation(weights, outputs, train_input, train_target):
     deltas = {}
-    
+
+    #Calculate the error for the output layer
     output_error = calculate_error(train_target, outputs['A2'])
+
+    #Calculate the error derivative for softmax
     error_gradient = error_derivative(train_target, outputs['A2'])
+
+    #Output delta (gradient) is error derivative * hidden layer outs (average for batch)
     out_delta = np.dot(outputs['A1'].T, error_gradient) / error_gradient.shape[0]
-    prior_error = error_gradient
+
+    #Append the delta
     deltas['dW2'] = out_delta
+
+    #Append the bias
     deltas['db2'] = np.sum(error_gradient, axis=0, keepdims=True) / error_gradient.shape[0]
 
+    #Get error for the hidden layer output(previous layer error * weights)
     hidden_out_error = np.dot(error_gradient, weights['W2'].T)
+
+    #Hidden layer error is output error * outputs * sigmoid prime
     hidden_error = hidden_out_error * outputs['A1'] * sigmoid_prime(outputs['A1'])
+
+    #Delta is input * error
     hidden_delta = np.matmul(train_input.T, hidden_error)
+
+    #Append the delta
     deltas['dW1'] = hidden_delta
+
+    #Append the bias
     deltas['db1'] = np.sum(hidden_error, axis=0, keepdims=True) / error_gradient.shape[0]
 
+    #Return
     return output_error, deltas
 
 
     
 def calculate_error(target, output):
-    #Cost - average loss of each output node
+    #Get the shape of the output
     rows, cols = output.shape
+
+    #Reshape from from just a # to all 0's
     reshaped_target = np.zeros((rows, 10))
+
+    #Change index of correct predictions to a 1
     reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
+
+    #Add up the error
     ce = -np.sum(reshaped_target * np.log(output + 1e-8))
+
+    #Round and return
     return round(ce, 2)
+
+
 
 def error_derivative(target, output):
     rows, cols = output.shape
@@ -208,21 +241,34 @@ def error_derivative(target, output):
     reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
     return output - reshaped_target
 
+
     
 def accuracy(target, predictions):
+    #See the total sum of 1's (True's where predictions matched target)
     correct_preds = np.sum(predictions.astype(int))
+
+    #Return correct / total
     return correct_preds / len(target)
 
 
+
 def predict(inputs, target, weights):
+    #Feed forward test inputs
     outputs = feed_forward(inputs, weights)
+
+    #Get the predictions in a usable format
     preds = get_predictions(outputs, target=target).astype(int)
+
+    #Return preds
     return preds
 
 
 
 def get_predictions(outputs, target):
+    #For each row, get the predictions (where the 1 is)
     predicts = np.argmax(outputs['A2'], axis=1)
+
+    #Return where predictions match target
     return predicts == target
 
 
