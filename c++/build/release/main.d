@@ -1,4 +1,4 @@
-build/release/main.o: src/main.cpp include/options.h \
+build/release/main.o: src/main.cpp include/options.hpp \
  include/eigen-3.3.7/Eigen/Dense include/eigen-3.3.7/Eigen/Core \
  include/eigen-3.3.7/Eigen/src/Core/util/DisableStupidWarnings.h \
  include/eigen-3.3.7/Eigen/src/Core/util/Macros.h \
@@ -14,10 +14,6 @@ build/release/main.o: src/main.cpp include/options.h \
  include/eigen-3.3.7/Eigen/src/Core/GenericPacketMath.h \
  include/eigen-3.3.7/Eigen/src/Core/MathFunctionsImpl.h \
  include/eigen-3.3.7/Eigen/src/Core/arch/Default/ConjHelper.h \
- include/eigen-3.3.7/Eigen/src/Core/arch/SSE/PacketMath.h \
- include/eigen-3.3.7/Eigen/src/Core/arch/SSE/MathFunctions.h \
- include/eigen-3.3.7/Eigen/src/Core/arch/SSE/Complex.h \
- include/eigen-3.3.7/Eigen/src/Core/arch/SSE/TypeCasting.h \
  include/eigen-3.3.7/Eigen/src/Core/arch/CUDA/Half.h \
  include/eigen-3.3.7/Eigen/src/Core/arch/CUDA/PacketMathHalf.h \
  include/eigen-3.3.7/Eigen/src/Core/arch/CUDA/TypeCasting.h \
@@ -118,7 +114,6 @@ build/release/main.o: src/main.cpp include/options.h \
  include/eigen-3.3.7/Eigen/src/LU/PartialPivLU.h \
  include/eigen-3.3.7/Eigen/src/LU/Determinant.h \
  include/eigen-3.3.7/Eigen/src/LU/InverseImpl.h \
- include/eigen-3.3.7/Eigen/src/LU/arch/Inverse_SSE.h \
  include/eigen-3.3.7/Eigen/Cholesky include/eigen-3.3.7/Eigen/Jacobi \
  include/eigen-3.3.7/Eigen/src/Jacobi/Jacobi.h \
  include/eigen-3.3.7/Eigen/src/Cholesky/LLT.h \
@@ -152,7 +147,6 @@ build/release/main.o: src/main.cpp include/options.h \
  include/eigen-3.3.7/Eigen/src/Geometry/ParametrizedLine.h \
  include/eigen-3.3.7/Eigen/src/Geometry/AlignedBox.h \
  include/eigen-3.3.7/Eigen/src/Geometry/Umeyama.h \
- include/eigen-3.3.7/Eigen/src/Geometry/arch/Geometry_SSE.h \
  include/eigen-3.3.7/Eigen/Eigenvalues \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/Tridiagonalization.h \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/RealSchur.h \
@@ -169,9 +163,11 @@ build/release/main.o: src/main.cpp include/options.h \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/RealQZ.h \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/GeneralizedEigenSolver.h \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/./RealQZ.h \
- include/eigen-3.3.7/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h
+ include/eigen-3.3.7/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h \
+ include/mnist-reader/mnist_reader.hpp \
+ include/mnist-reader/mnist_reader_common.hpp
 
-include/options.h:
+include/options.hpp:
 
 include/eigen-3.3.7/Eigen/Dense:
 
@@ -204,14 +200,6 @@ include/eigen-3.3.7/Eigen/src/Core/GenericPacketMath.h:
 include/eigen-3.3.7/Eigen/src/Core/MathFunctionsImpl.h:
 
 include/eigen-3.3.7/Eigen/src/Core/arch/Default/ConjHelper.h:
-
-include/eigen-3.3.7/Eigen/src/Core/arch/SSE/PacketMath.h:
-
-include/eigen-3.3.7/Eigen/src/Core/arch/SSE/MathFunctions.h:
-
-include/eigen-3.3.7/Eigen/src/Core/arch/SSE/Complex.h:
-
-include/eigen-3.3.7/Eigen/src/Core/arch/SSE/TypeCasting.h:
 
 include/eigen-3.3.7/Eigen/src/Core/arch/CUDA/Half.h:
 
@@ -415,8 +403,6 @@ include/eigen-3.3.7/Eigen/src/LU/Determinant.h:
 
 include/eigen-3.3.7/Eigen/src/LU/InverseImpl.h:
 
-include/eigen-3.3.7/Eigen/src/LU/arch/Inverse_SSE.h:
-
 include/eigen-3.3.7/Eigen/Cholesky:
 
 include/eigen-3.3.7/Eigen/Jacobi:
@@ -487,8 +473,6 @@ include/eigen-3.3.7/Eigen/src/Geometry/AlignedBox.h:
 
 include/eigen-3.3.7/Eigen/src/Geometry/Umeyama.h:
 
-include/eigen-3.3.7/Eigen/src/Geometry/arch/Geometry_SSE.h:
-
 include/eigen-3.3.7/Eigen/Eigenvalues:
 
 include/eigen-3.3.7/Eigen/src/Eigenvalues/Tridiagonalization.h:
@@ -522,3 +506,7 @@ include/eigen-3.3.7/Eigen/src/Eigenvalues/GeneralizedEigenSolver.h:
 include/eigen-3.3.7/Eigen/src/Eigenvalues/./RealQZ.h:
 
 include/eigen-3.3.7/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h:
+
+include/mnist-reader/mnist_reader.hpp:
+
+include/mnist-reader/mnist_reader_common.hpp:
