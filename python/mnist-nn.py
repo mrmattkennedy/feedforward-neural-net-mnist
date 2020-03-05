@@ -56,8 +56,10 @@ def init_data():
     items, rows, cols = test_image_data.shape
     test_image_data = test_image_data.reshape(items, rows * cols)
 
-    return train_image_data, train_label_data, test_image_data, test_label_data
+    train_data = np.vstack((train_image_data, test_image_data))
+    label_data = np.hstack((train_label_data, test_label_data))
 
+    return train_data, label_data
 
 def init_weights(arch):
     weights = {
@@ -87,18 +89,23 @@ def init_velocities(arch):
     
 def train():
     #Get opts, data, weights, velocities
-    train_input, train_target, test_input, test_target = init_data()
+    X, y = init_data()
     arch = ((opts.n_x, opts.n_h), (opts.n_h, opts.n_h2), (opts.n_h2, opts.n_o))
     weights = init_weights(arch)
     velocities = init_velocities(arch)
     
     #Train for n epochs
     for j in range(opts.epochs + 1):
-
-        #Get a random mini batch and shuffle up the original data set. Update alpha
-        permutation = np.random.permutation(opts.batch_size * opts.batches)
-        X_epoch = train_input[permutation]
-        y_epoch = train_target[permutation]
+        #Shuffle data
+        permutation = np.random.permutation(X.shape[0])
+        X = X[permutation]
+        y = y[permutation]
+        
+        #Get the train and test data
+        X_train = X[:opts.batch_size * opts.batches]
+        y_train = y[:opts.batch_size * opts.batches]
+        X_test = X[opts.batch_size * opts.batches:]
+        y_test = y[opts.batch_size * opts.batches:]
         opts.alpha *= (1 / (1 + opts.decay * j))
 
         for k in range(opts.batches):
@@ -106,14 +113,14 @@ def train():
             begin = k * opts.batch_size
             end = begin + opts.batch_size
 
-            X = X_epoch[begin:end]
-            y = y_epoch[begin:end]
+            X_batch = X_train[begin:end]
+            y_batch = y_train[begin:end]
             
             # Feed forward
-            outputs = feed_forward(X, weights)
-            
+            outputs = feed_forward(X_batch, weights)
+
             # Backpropagate, get error as well
-            output_error, deltas = back_propagation(weights, outputs, X, y)
+            output_error, deltas = back_propagation(weights, outputs, X_batch, y_batch)
             
 
             #Using velocities for momentum in SGD
@@ -138,9 +145,10 @@ def train():
             print('Epoch {:5}'.format(j), end=' - ')
             print('loss: {:0.4f}'.format(train_error), end= ' - ')
 
-            train_accuracy = accuracy(target=y, predictions=(get_predictions(outputs, y)))
-            test_preds = predict(test_input, test_target, weights)
-            test_accuracy = accuracy(target=test_target, predictions=test_preds)
+            outputs = feed_forward(X_train, weights)
+            train_accuracy = accuracy(target=y_train, predictions=(get_predictions(outputs, y_train)))
+            test_preds = predict(X_test, y_test, weights)
+            test_accuracy = accuracy(target=y_test, predictions=test_preds)
 
             print('acc: train {:0.3f}'.format(train_accuracy), end= ' | ')
             print('test {:0.3f}'.format(test_accuracy), end= ' | ')
