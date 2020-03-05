@@ -17,7 +17,7 @@ def init_params():
                         help='learning rate')
     parser.add_argument('--decay', type=float, default=0.0001,
                         help='learning rate decay')
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('--epochs', type=int, default=250,
                         help='number of epochs to train')
     parser.add_argument('--n_x', type=int, default=784,
                         help='number of inputs')
@@ -27,11 +27,11 @@ def init_params():
                         help='number of hidden units')
     parser.add_argument('--n_o', type=int, default=10,
                         help='number of output units')
-    parser.add_argument('--beta', type=float, default=0.95,
+    parser.add_argument('--beta', type=float, default=0.9,
                         help='parameter for momentum')
-    parser.add_argument('--batch_size', type=int, default=500,
+    parser.add_argument('--batch_size', type=int, default=300,
                         help='input batch size')
-    parser.add_argument('--batches', type=int, default=120,
+    parser.add_argument('--batches', type=int, default=200,
                         help='batch iterations')
     return parser.parse_args()
 
@@ -136,7 +136,7 @@ def train():
         if (j % 5) == 0:
             train_error = np.mean(np.abs(output_error))
             print('Epoch {:5}'.format(j), end=' - ')
-            print('error: {:0.4f}'.format(train_error), end= ' - ')
+            print('loss: {:0.4f}'.format(train_error), end= ' - ')
 
             train_accuracy = accuracy(target=y, predictions=(get_predictions(outputs, y)))
             test_preds = predict(test_input, test_target, weights)
