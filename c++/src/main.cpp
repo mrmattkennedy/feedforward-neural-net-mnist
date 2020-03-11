@@ -1,15 +1,19 @@
 #include <iostream>
 #include "options.hpp"
+#include "mnist_loader.hpp"
 #include "eigen-3.3.7/Eigen/Dense"
-#include "mnist-reader/mnist_reader.hpp"
 
-void create_matrix(mnist::MNIST_dataset<std::vector, std::vector<uint8_t>, uint8_t> dataset);
 int main(int argc, char** argv)
 {
 	options opts;
 	std::string data_path = "..\\MNIST data\\";
-	mnist::MNIST_dataset<std::vector, std::vector<uint8_t>, uint8_t> dataset = 
-		mnist::read_dataset<std::vector, std::vector, uint8_t, uint8_t>(data_path);
+	mnist_loader train(data_path + "train-images.idx3-ubyte",
+		"dataset/train-labels.idx1-ubyte");
+	mnist_loader test("dataset/t10k-images.idx3-ubyte",
+		"dataset/t10k-labels.idx1-ubyte");
+//	mnist::MNIST_dataset<std::vector, std::vector<uint8_t>, uint8_t> dataset = 
+//		mnist::read_dataset<std::vector, std::vector, uint8_t, uint8_t>(data_path);
+	
 
 //	Eigen::MatrixXd m = Eigen::MatrixXd::Random(3,3);
 //	Eigen::Matrix<unsigned char, 60000, 28, 28> test = Eigen::Map<Eigen::Matrix<unsigned char, 60000, 28, 28>, Eigen::Unaligned, Eigen::Stride<28, 28> >(dataset.training_images);
@@ -19,11 +23,11 @@ int main(int argc, char** argv)
 //	std::cout << "Nbr of training labels = " << dataset.training_labels.size() << std::endl;
 //	std::cout << "Nbr of test images = " << dataset.test_images.size() << std::endl;
 //	std::cout << "Nbr of test labels = " << dataset.test_labels.size() << std::endl;
-	create_matrix(dataset);
+//	create_matrix(dataset);
 	return 1;
 }
 
-
+/*
 void create_matrix(mnist::MNIST_dataset<std::vector, std::vector<uint8_t>, uint8_t> dataset)
 {
 	//28x28 matrix
@@ -42,4 +46,4 @@ void create_matrix(mnist::MNIST_dataset<std::vector, std::vector<uint8_t>, uint8
 		break;
  	}
 }
-
+*/

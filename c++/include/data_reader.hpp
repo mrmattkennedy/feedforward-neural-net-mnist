@@ -16,41 +16,23 @@ class Data_Reader
 		std::string test_labels_path = base_path + "t10k-images.idx1-ubyte";
 
 	public:
+		int to_int(char* p)
+		{
+		  return ((p[0] & 0xff) << 24) | ((p[1] & 0xff) << 16) |
+			 ((p[2] & 0xff) <<  8) | ((p[3] & 0xff) <<  0);
+		}
+
 		int get_train_images()
 		{
-			/*
-			// open the file:
-			std::ifstream file(train_data_path, std::ios::binary);
 			
-			std::cout << "good: " << file.good() << std::endl;
-			// Stop eating new lines in binary mode!!!
-			file.unsetf(std::ios::skipws);
+			std::ifstream ifs(train_data_path, std::ios::in | std::ios::binary);
+			char p[4];
 
-			// get its size:
-			std::streampos fileSize;
-
-			file.seekg(0, std::ios::end);
-			fileSize = file.tellg();
-			file.seekg(0, std::ios::beg);
-
-			// reserve capacity
-			std::vector<char> vec;
-			std::cout << "Filesize: " << fileSize << std::endl;
-			vec.reserve(fileSize);
-
-			// read the data:
-			vec.insert(vec.begin(),
-					std::istream_iterator<char>(file),
-					std::istream_iterator<char>());
-			*/
-
-			std::ifstream input(train_data_path, std::ios::binary);
-			std::vector<char> bytes(
-				(std::istreambuf_iterator<char>(input)),
-				(std::istreambuf_iterator<char>()));
-
-			input.close();
-			std::cout << "Size: " << bytes.size() << std::endl;
+			ifs.read(p, 4);
+			int magic_number = to_int(p);
+			std::cout << "num is " << magic_number << std::endl;
+			
+			ifs.close();
 		}
 };
 #endif

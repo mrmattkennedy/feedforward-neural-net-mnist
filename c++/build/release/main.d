@@ -1,5 +1,6 @@
 build/release/main.o: src/main.cpp include/options.hpp \
- include/eigen-3.3.7/Eigen/Dense include/eigen-3.3.7/Eigen/Core \
+ include/mnist_loader.hpp include/eigen-3.3.7/Eigen/Dense \
+ include/eigen-3.3.7/Eigen/Core \
  include/eigen-3.3.7/Eigen/src/Core/util/DisableStupidWarnings.h \
  include/eigen-3.3.7/Eigen/src/Core/util/Macros.h \
  include/eigen-3.3.7/Eigen/src/Core/util/MKL_support.h \
@@ -163,11 +164,11 @@ build/release/main.o: src/main.cpp include/options.hpp \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/RealQZ.h \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/GeneralizedEigenSolver.h \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/./RealQZ.h \
- include/eigen-3.3.7/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h \
- include/mnist-reader/mnist_reader.hpp \
- include/mnist-reader/mnist_reader_common.hpp
+ include/eigen-3.3.7/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h
 
 include/options.hpp:
+
+include/mnist_loader.hpp:
 
 include/eigen-3.3.7/Eigen/Dense:
 
@@ -506,7 +507,3 @@ include/eigen-3.3.7/Eigen/src/Eigenvalues/GeneralizedEigenSolver.h:
 include/eigen-3.3.7/Eigen/src/Eigenvalues/./RealQZ.h:
 
 include/eigen-3.3.7/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h:
-
-include/mnist-reader/mnist_reader.hpp:
-
-include/mnist-reader/mnist_reader_common.hpp:
