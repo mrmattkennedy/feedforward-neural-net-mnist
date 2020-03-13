@@ -1,5 +1,5 @@
 build/release/main.o: src/main.cpp include/options.hpp \
- include/mnist_loader.hpp include/eigen-3.3.7/Eigen/Dense \
+ include/data_reader.hpp include/eigen-3.3.7/Eigen/Dense \
  include/eigen-3.3.7/Eigen/Core \
  include/eigen-3.3.7/Eigen/src/Core/util/DisableStupidWarnings.h \
  include/eigen-3.3.7/Eigen/src/Core/util/Macros.h \
@@ -168,7 +168,7 @@ build/release/main.o: src/main.cpp include/options.hpp \
 
 include/options.hpp:
 
-include/mnist_loader.hpp:
+include/data_reader.hpp:
 
 include/eigen-3.3.7/Eigen/Dense:
 

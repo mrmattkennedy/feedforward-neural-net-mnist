@@ -1,29 +1,11 @@
-#ifndef DATA_INCLUDED
-#define DATA_INCLUDED
-
 #include <assert.h>
 #include <string>
 #include <fstream>
 #include <iterator>
 #include <vector>
+#include "data_reader.hpp"
 
-class Data_Reader
-{
-	private:
-		std::string base_path = "..\\MNIST data\\";
-		std::string train_data_path = base_path + "train-images.idx3-ubyte";
-		std::string train_labels_path = base_path + "train-labels.idx1-ubyte";
-		std::string test_data_path = base_path + "t10k-images.idx3-ubyte";
-		std::string test_labels_path = base_path + "t10k-images.idx1-ubyte";
-
-  		std::vector<std::vector<unsigned char>> m_images;
-		std::vector<int> m_labels;
-
-		unsigned int m_size;
-		unsigned short int rows;
-		unsigned short int cols;
-
-	public:
+data_reader::data_reader
 		int to_int(char* p)
 		{
 		  return ((p[0] & 0xff) << 24) | ((p[1] & 0xff) << 16) |
@@ -67,4 +49,4 @@ class Data_Reader
 			ifs.close();
 		}
 };
-#endif
+#
