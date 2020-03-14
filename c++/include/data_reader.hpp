@@ -13,9 +13,6 @@ class data_reader
 		std::string test_data_path;
 		std::string test_labels_path;
 
-  		std::vector<std::vector<unsigned char>> m_images;
-		std::vector<int> m_labels;
-
 		unsigned short int n_rows;
 		unsigned short int n_cols;
 
@@ -28,11 +25,11 @@ class data_reader
 		data_reader(std::string base_path);
 		~data_reader();
 
-		int size() { return m_images.size(); }
-		int rows() { return n_rows; }
-		int cols() { return n_cols; }
+		constexpr int size() { return 70000; }
+		constexpr int rows() { return n_rows; }
+		constexpr int cols() { return n_cols; }
 
-		std::vector<unsigned char> images(int id) { return m_images[id]; }
-		int labels(int id) { return m_labels[id]; }
+  		std::vector<std::vector<int>> m_images;
+		std::vector<int> m_labels;
 };
 #endif

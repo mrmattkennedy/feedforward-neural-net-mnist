@@ -61,7 +61,7 @@ void data_reader::load_images(std::string data_path)
 	{
 		//Read in rows*cols bytes, assign to a new vector image, push back image on images
 		ifs.read(q, n_rows*n_cols);
-		std::vector<unsigned char> image;
+		std::vector<int> image;
 		std::copy(q, q+(n_rows*n_cols), std::back_inserter(image));	
 		m_images.push_back(image);
 	}
