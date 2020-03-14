@@ -16,19 +16,19 @@ class data_reader
   		std::vector<std::vector<unsigned char>> m_images;
 		std::vector<int> m_labels;
 
-		unsigned int m_size;
 		unsigned short int n_rows;
 		unsigned short int n_cols;
+
 		
-		void load_images();
-		void load_labels();
+		void load_images(std::string data_path);
+		void load_labels(std::string labels_path);
 		int to_int(char* p);
 
 	public:
 		data_reader(std::string base_path);
 		~data_reader();
 
-		int size() { return m_size; }
+		int size() { return m_images.size(); }
 		int rows() { return n_rows; }
 		int cols() { return n_cols; }
 

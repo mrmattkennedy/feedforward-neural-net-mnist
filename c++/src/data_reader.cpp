@@ -12,7 +12,12 @@ data_reader::data_reader(std::string base_path)
 		train_data_path = base_path + "train-images.idx3-ubyte";
 		train_labels_path = base_path + "train-labels.idx1-ubyte";
 		test_data_path = base_path + "t10k-images.idx3-ubyte";
-		test_labels_path = base_path + "t10k-images.idx1-ubyte";
+		test_labels_path = base_path + "t10k-labels.idx1-ubyte";
+
+		load_images(train_data_path);
+		load_images(test_data_path);
+		load_labels(train_labels_path);
+		load_labels(test_labels_path);
 }
 
 data_reader::~data_reader()
@@ -29,10 +34,10 @@ int data_reader::to_int(char* p)
 }
 
 
-void data_reader::load_images()
+void data_reader::load_images(std::string data_path)
 {
 	
-	std::ifstream ifs(train_data_path, std::ios::in | std::ios::binary);
+	std::ifstream ifs(data_path, std::ios::in | std::ios::binary);
 
 	//idx file format chunked into 4 bytes each.
 	//Magic number first - 3rd byte is data type, 4th is # dimensions.
@@ -44,7 +49,7 @@ void data_reader::load_images()
 
 	//Get sizes
 	ifs.read(p, 4);
-	m_size = to_int(p);
+	int size = to_int(p);
 	ifs.read(p, 4);
 	n_rows = to_int(p);
 	ifs.read(p, 4);
@@ -52,15 +57,36 @@ void data_reader::load_images()
 	
 	//Read elements in
 	char q[n_rows*n_cols];
-	for (int i = 0; i < m_size; i++)
+	for (int i = 0; i < size; i++)
 	{
 		//Read in rows*cols bytes, assign to a new vector image, push back image on images
 		ifs.read(q, n_rows*n_cols);
 		std::vector<unsigned char> image;
-		image.reserve(n_rows*n_cols);
 		std::copy(q, q+(n_rows*n_cols), std::back_inserter(image));	
 		m_images.push_back(image);
 	}
 	ifs.close();
 }
 
+void data_reader::load_labels(std::string labels_path)
+{
+	
+	std::ifstream ifs(labels_path, std::ios::in | std::ios::binary);
+
+	//idx file format chunked into 4 bytes each.
+	//Magic number first - 3rd byte is data type, 4th is # dimensions.
+	char p[4];
+
+	ifs.read(p, 4);
+	int magic_number = to_int(p);
+	assert(magic_number == 0x801);
+
+	ifs.read(p, 4);
+	int size = to_int(p);
+	for (int i = 0; i < size; i++)
+	{
+		ifs.read(p, 1);
+		int label = p[0];
+		m_labels.push_back(label);
+	}
+}

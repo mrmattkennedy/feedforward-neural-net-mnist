@@ -7,7 +7,8 @@ int main(int argc, char** argv)
 {
 	options opts;
 	std::string base_path = "..\\MNIST data\\";
+	//Capacity > size
 	data_reader data(base_path);
+
 	return 1;
 }
-
