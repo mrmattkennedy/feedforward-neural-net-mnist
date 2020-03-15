@@ -9,10 +9,9 @@ int main(int argc, char** argv)
 	std::string base_path = "..\\MNIST data\\";
 	data_reader data(base_path);
 	
-	Eigen::MatrixXi inputs(data.size(), data.rows() * data.cols());
+	Eigen::MatrixXd inputs(data.size(), data.rows() * data.cols());
 	for (int i = 0; i < data.size(); i++)
-		inputs.row(i) = Eigen::VectorXi::Map(&data.m_images[i][0], data.m_images[i].size());
-
-
+		inputs.row(i) = Eigen::VectorXd::Map(&data.m_images[i][0], data.m_images[i].size());
+	std::cout << inputs.row(0) << std::endl;
 	return 1;
 }

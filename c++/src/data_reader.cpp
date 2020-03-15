@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iterator>
 #include <vector>
+#include <algorithm>
 #include "data_reader.hpp"
 
 data_reader::data_reader(std::string base_path)
@@ -61,10 +62,14 @@ void data_reader::load_images(std::string data_path)
 	{
 		//Read in rows*cols bytes, assign to a new vector image, push back image on images
 		ifs.read(q, n_rows*n_cols);
-		std::vector<int> image;
-		std::copy(q, q+(n_rows*n_cols), std::back_inserter(image));	
-		m_images.push_back(image);
+		std::vector<unsigned char> image;
+		std::copy(q, q+(n_rows*n_cols), std::back_inserter(image));
+		//Reading directly in to a double will use more than 1 byte, giving wrong inputs
+		std::vector<double> double_image(image.begin(), image.end());
+		m_images.push_back(double_image);
 	}
+	
+	delete[] q;
 	ifs.close();
 }
 

@@ -29,7 +29,7 @@ class data_reader
 		int rows() { return n_rows; }
 		int cols() { return n_cols; }
 
-  		std::vector<std::vector<int>> m_images;
+  		std::vector<std::vector<double>> m_images;
 		std::vector<int> m_labels;
 };
 #endif
