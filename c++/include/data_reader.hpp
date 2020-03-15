@@ -25,9 +25,9 @@ class data_reader
 		data_reader(std::string base_path);
 		~data_reader();
 
-		constexpr int size() { return 70000; }
-		constexpr int rows() { return n_rows; }
-		constexpr int cols() { return n_cols; }
+		int size() { return m_images.size(); }
+		int rows() { return n_rows; }
+		int cols() { return n_cols; }
 
   		std::vector<std::vector<int>> m_images;
 		std::vector<int> m_labels;
