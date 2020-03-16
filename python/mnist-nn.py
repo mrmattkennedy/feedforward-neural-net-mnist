@@ -21,7 +21,7 @@ def init_params():
                         help='number of epochs to train')
     parser.add_argument('--n_x', type=int, default=784,
                         help='number of inputs')
-    parser.add_argument('--n_h', type=int, default=500,
+    parser.add_argument('--n_h', type=int, default=600,
                         help='number of hidden units')
     parser.add_argument('--n_h2', type=int, default=500,
                         help='number of hidden units')
@@ -205,6 +205,7 @@ def back_propagation(weights, outputs, train_input, train_target):
     #Calculate the error derivative for softmax
     error_gradient = error_derivative(train_target, outputs['A3'])
 
+    pdb.set_trace()
     #Output delta (gradient) is error derivative * hidden layer outs (average for batch)
     out_delta = np.dot(outputs['A2'].T, error_gradient) / error_gradient.shape[0]
 

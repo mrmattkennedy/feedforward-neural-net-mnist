@@ -13,7 +13,6 @@ neural_net::neural_net(std::string path, std::vector<int> hidden_layer_sizes) : 
 	
 	//Need data initialized before this
 	inputs = Eigen::MatrixXd(data.size(), data.rows() * data.cols());
-	
 	//Initialize the architecture
 	arch.push_back(data.rows() * data.cols());
 	for (int i = 0; i < hidden_layer_sizes.size(); i++)
@@ -25,6 +24,7 @@ neural_net::neural_net(std::string path, std::vector<int> hidden_layer_sizes) : 
 
 	create_arch();
 	feed_forward();
+	back_propagation();
 }
 
 neural_net::~neural_net()
@@ -34,62 +34,10 @@ neural_net::~neural_net()
 
 void neural_net::create_arch()
 {
-	/*
-	std::vector<std::vector<double>> w1_init = init_weights(arch[0], arch[1]);
-	w1 = Eigen::MatrixXd(arch[0], arch[1]);
-	for (int i = 0; i < arch[0]; i++)
-		w1.row(i) = Eigen::VectorXd::Map(&w1_init[i][0], w1_init[i].size());
-	
-	//Doing 1 row is incredibly slow, need n rows by 1 column
-	
-	std::vector<std::vector<double>> b1_init = init_weights(arch[1], 1);
-	b1 = Eigen::MatrixXd(arch[1], 1);
-	for (int i = 0; i < arch[1]; i++)
-		b1.row(i) = Eigen::VectorXd::Map(&b1_init[i][0], b1_init[i].size());
-	
-	b1 = Eigen::VectorXd(arch[1]);
-	std::vector<std::vector<double>> w2_init = init_weights(arch[1], arch[2]);
-	w2 = Eigen::MatrixXd(arch[1], arch[2]);
-	for (int i = 0; i < arch[1]; i++)
-		w2.row(i) = Eigen::VectorXd::Map(&w2_init[i][0], w2_init[i].size());
-
-	std::vector<std::vector<double>> b2_init = init_weights(arch[2], 1);
-	b2 = Eigen::MatrixXd(arch[2], 1);
-	for (int i = 0; i < arch[2]; i++)
-		b2.row(i) = Eigen::VectorXd::Map(&b2_init[i][0], b2_init[i].size());
-
-	w1_init.clear();
-	b1_init.clear();
-	w2_init.clear();
-	b2_init.clear();
-	*/
-
 	w1 = Eigen::MatrixXd::Random(arch[0], arch[1]);
 	b1 = Eigen::MatrixXd::Random(1, arch[1]);
 	w2 = Eigen::MatrixXd::Random(arch[1], arch[2]);
 	b2 = Eigen::MatrixXd::Random(1, arch[2]);
-}
-
-
-std::vector<std::vector<double>> neural_net::init_weights(int from_size, int to_size)
-{
-	double lower_bound = 0;
-	double upper_bound = 1;
-	std::uniform_real_distribution<double> unif(lower_bound,upper_bound);
-	std::default_random_engine re;
-
-	std::vector<std::vector<double>> w_init;
-	for (int i = 0; i < from_size; i++)
-	{	
-		std::vector<double> temp(to_size);
-		for (int j = 0; j < to_size; j++)
-		{
-			double weight = unif(re);
-			temp[j] = weight;
-		}
-		w_init.push_back(temp);
-	}
-	return w_init;
 }
 
 void neural_net::feed_forward()
@@ -108,13 +56,36 @@ void neural_net::feed_forward()
 	l2 = Eigen::MatrixXd(a2.rows(), a2.cols());
 	for (int i = 0; i < a2.rows(); i++)
 		l2.row(i) = a2_exp.row(i) / a2_exp_sums(i, 0);
-//	std::cout << l2.row(0) << std::endl << "Sum is " << l2.row(0).sum() << std::endl;
 
 }
 
-double neural_net::sigmoid(double z)
+void neural_net::back_propagation()
 {
-	//z = std::max(-500, std::min(z, 500));
-	//return 1 / (1 + z);
-	return z;
+	model_error = get_error();
+	Eigen::MatrixXd error_gradient = get_error_gradient();
+	
+	out_delta = (l1.transpose() * error_gradient);
+	out_bias_delta = (error_gradient.colwise().sum() / error_gradient.rows());
+
+	Eigen::MatrixXd hidden_output_error = error_gradient * w2.transpose();
+	Eigen::MatrixXd sigmoid_prime = (l1.array() * (1 - l1.array())).matrix();
+	Eigen::MatrixXd hidden_error = (hidden_output_error.array() * inputs.array() * sigmoid_prime.array()).matrix();
+	hidden_delta = inputs.transpose() * hidden_error;
+	hidden_bias_delta = (hidden_error.colwise().sum() / hidden_error.rows());
+}
+
+int neural_net::get_error()
+{
+	reshaped_target = Eigen::MatrixXd::Zero(l2.rows(), l2.cols());
+	for (int i = 0; i < data.m_labels.size(); i++)
+		reshaped_target(i, data.m_labels[i]) = 1;
+	
+	Eigen::MatrixXd temp = (l2.array() + 0.000000001).matrix();
+	Eigen::MatrixXd model_error = reshaped_target *  (temp.array().log()).matrix();
+	return -model_error.sum();
+}
+
+Eigen::MatrixXd neural_net::get_error_gradient()
+{
+	return (l2.array() - reshaped_target.array()).matrix();
 }

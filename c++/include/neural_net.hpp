@@ -9,6 +9,10 @@
 class neural_net
 {
 	private:
+		std::vector<int> arch;
+		data_reader data;
+		options opts;
+
 		Eigen::MatrixXd w1;
 		Eigen::MatrixXd b1;
 		Eigen::MatrixXd w2;
@@ -18,17 +22,22 @@ class neural_net
 		Eigen::MatrixXd l1;
 		Eigen::MatrixXd l2;
 		
-		std::vector<int> arch;
-		data_reader data;
-		options opts;
+		Eigen::MatrixXd reshaped_target;
+		int model_error;
+
+		Eigen::MatrixXd out_delta;
+		Eigen::MatrixXd out_bias_delta;
+		Eigen::MatrixXd hidden_delta;
+		Eigen::MatrixXd hidden_bias_delta;
 		
 	public:
 		neural_net(std::string base_path, std::vector<int> hidden_layer_sizes);
 		~neural_net();
 
 		void create_arch();
-		std::vector<std::vector<double>> init_weights(int from_size, int to_size);
 		void feed_forward();
-		double sigmoid(double z);
+		void back_propagation();
+		int get_error();
+		Eigen::MatrixXd get_error_gradient();
 };
 #endif
