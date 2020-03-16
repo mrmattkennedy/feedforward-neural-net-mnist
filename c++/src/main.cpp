@@ -1,17 +1,11 @@
-#include <iostream>
-#include "options.hpp"
-#include "data_reader.hpp"
-#include "eigen-3.3.7/Eigen/Dense"
+#include "neural_net.hpp"
+#include <vector>
 
 int main(int argc, char** argv)
 {
-	options opts;
 	std::string base_path = "..\\MNIST data\\";
-	data_reader data(base_path);
-	
-	Eigen::MatrixXd inputs(data.size(), data.rows() * data.cols());
-	for (int i = 0; i < data.size(); i++)
-		inputs.row(i) = Eigen::VectorXd::Map(&data.m_images[i][0], data.m_images[i].size());
-	std::cout << inputs.row(0) << std::endl;
+	std::vector<int> temp;
+	temp.push_back(200);
+	neural_net nn(base_path, temp);
 	return 1;
 }

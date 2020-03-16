@@ -1,4 +1,4 @@
-build/release/main.o: src/main.cpp include/neural_net.hpp \
+build/release/neural_net.o: src/neural_net.cpp include/neural_net.hpp \
  include/eigen-3.3.7/Eigen/Dense include/eigen-3.3.7/Eigen/Core \
  include/eigen-3.3.7/Eigen/src/Core/util/DisableStupidWarnings.h \
  include/eigen-3.3.7/Eigen/src/Core/util/Macros.h \
@@ -164,7 +164,18 @@ build/release/main.o: src/main.cpp include/neural_net.hpp \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/GeneralizedEigenSolver.h \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/./RealQZ.h \
  include/eigen-3.3.7/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h \
- include/options.hpp include/data_reader.hpp
+ include/options.hpp include/data_reader.hpp include/data_reader.hpp \
+ include/options.hpp include/eigen-3.3.7/Eigen/Dense \
+ include/eigen-3.3.7/unsupported/Eigen/MatrixFunctions \
+ include/eigen-3.3.7/unsupported/Eigen/../../Eigen/Core \
+ include/eigen-3.3.7/unsupported/Eigen/../../Eigen/LU \
+ include/eigen-3.3.7/unsupported/Eigen/../../Eigen/Eigenvalues \
+ include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/MatrixExponential.h \
+ include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/StemFunction.h \
+ include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/MatrixFunction.h \
+ include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/MatrixSquareRoot.h \
+ include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/MatrixLogarithm.h \
+ include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/MatrixPower.h
 
 include/neural_net.hpp:
 
@@ -509,3 +520,29 @@ include/eigen-3.3.7/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h:
 include/options.hpp:
 
 include/data_reader.hpp:
+
+include/data_reader.hpp:
+
+include/options.hpp:
+
+include/eigen-3.3.7/Eigen/Dense:
+
+include/eigen-3.3.7/unsupported/Eigen/MatrixFunctions:
+
+include/eigen-3.3.7/unsupported/Eigen/../../Eigen/Core:
+
+include/eigen-3.3.7/unsupported/Eigen/../../Eigen/LU:
+
+include/eigen-3.3.7/unsupported/Eigen/../../Eigen/Eigenvalues:
+
+include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/MatrixExponential.h:
+
+include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/StemFunction.h:
+
+include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/MatrixFunction.h:
+
+include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/MatrixSquareRoot.h:
+
+include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/MatrixLogarithm.h:
+
+include/eigen-3.3.7/unsupported/Eigen/src/MatrixFunctions/MatrixPower.h:
