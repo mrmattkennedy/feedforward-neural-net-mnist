@@ -39,9 +39,10 @@ void neural_net::create_arch()
 	for (int i = 0; i < arch[0]; i++)
 		w1.row(i) = Eigen::VectorXd::Map(&w1_init[i][0], w1_init[i].size());
 	
-	std::vector<std::vector<double>> b1_init = init_weights(1, arch[1]);
-	b1 = Eigen::MatrixXd(1, arch[1]);
-	for (int i = 0; i < 1; i++)
+	//Doing 1 row is incredibly slow, need n rows by 1 column
+	std::vector<std::vector<double>> b1_init = init_weights(arch[1], 1);
+	b1 = Eigen::MatrixXd(arch[1], 1);
+	for (int i = 0; i < arch[1]; i++)
 		b1.row(i) = Eigen::VectorXd::Map(&b1_init[i][0], b1_init[i].size());
 
 	std::vector<std::vector<double>> w2_init = init_weights(arch[1], arch[2]);
@@ -49,9 +50,9 @@ void neural_net::create_arch()
 	for (int i = 0; i < arch[1]; i++)
 		w2.row(i) = Eigen::VectorXd::Map(&w2_init[i][0], w2_init[i].size());
 
-	std::vector<std::vector<double>> b2_init = init_weights(1, arch[2]);
-	b2 = Eigen::MatrixXd(1, arch[2]);
-	for (int i = 0; i < 1; i++)
+	std::vector<std::vector<double>> b2_init = init_weights(arch[2], 1);
+	b2 = Eigen::MatrixXd(arch[2], 1);
+	for (int i = 0; i < arch[2]; i++)
 		b2.row(i) = Eigen::VectorXd::Map(&b2_init[i][0], b2_init[i].size());
 
 	w1_init.clear();
@@ -84,22 +85,22 @@ std::vector<std::vector<double>> neural_net::init_weights(int from_size, int to_
 
 void neural_net::feed_forward()
 {
-	Eigen::MatrixXd a1 = inputs * w1;
+	printf("Here\n");
+	Eigen::MatrixXd a1 = (inputs * w1) + b1.transpose();
 	std::cout << a1.rows() << ", " << a1.cols() << std::endl;
-	/*
-	l1 = a1.unaryExpr(
-		[](const double& x) {
-			return x / (1 + std::exp(x));
-	});
-
-	Eigen::MatrixXd a2 = (w2 * l1) + (b2 * l1);
-	Eigen::MatrixXd a2_exp = a2.unaryExpr(
-		[](const double& x) {
-			return std::exp(x);
-	});
-	std::cout << a2.rows() << ", " <<a2.cols() << std::endl;
+	//std::cout << a1_b.rows() << ", " << a1_b.cols() << std::endl;
+	std::cout << b1.rows() << ", " << b1.cols() << std::endl;
+	//a1 += a1_b;
+	printf("Here\n");
+	l1 = 1 / (1 + (a1.array() * -1).exp());
+	printf("Here\n");
+	Eigen::MatrixXd a2 = (l1 * w2);// + (b2 * l1);
+	printf("Here\n");
+	std::cout << a2.rows() << ", " << a2.cols() << std::endl;
+	
 	Eigen::MatrixXd sums = a2.rowwise().sum();
 
+	/*
 	//for (int i = 0; i < 
 	//l2 = a2_exp / sums;
 	std::cout << sums.rows() << ", " << sums.cols() << std::endl;
