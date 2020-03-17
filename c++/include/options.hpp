@@ -4,8 +4,8 @@ class options
 {
 	public:
 		//Learning rate
-		float alpha = 0.01;
-		float beta = 0.90;
+		float alpha = 0.001;
+		float beta = 0.95;
 		float decay = 0.001;
 		int epochs = 50;
 		int n_x = 784;

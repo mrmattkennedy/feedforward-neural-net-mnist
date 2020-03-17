@@ -205,7 +205,6 @@ def back_propagation(weights, outputs, train_input, train_target):
     #Calculate the error derivative for softmax
     error_gradient = error_derivative(train_target, outputs['A3'])
 
-    pdb.set_trace()
     #Output delta (gradient) is error derivative * hidden layer outs (average for batch)
     out_delta = np.dot(outputs['A2'].T, error_gradient) / error_gradient.shape[0]
 
@@ -231,7 +230,7 @@ def back_propagation(weights, outputs, train_input, train_target):
     #Append the bias
     deltas['db2'] = np.sum(hidden_error_2, axis=0, keepdims=True) / error_gradient.shape[0]
 
-
+    pdb.set_trace()
     #Get error for the hidden layer output(previous layer error * weights)
     hidden_out_error = np.dot(hidden_error_2, weights['W2'].T)
 

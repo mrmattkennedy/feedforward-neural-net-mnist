@@ -18,6 +18,11 @@ class neural_net
 		Eigen::MatrixXd w2;
 		Eigen::MatrixXd b2;
 		
+		Eigen::MatrixXd v_w1;
+		Eigen::MatrixXd v_b1;
+		Eigen::MatrixXd v_w2;
+		Eigen::MatrixXd v_b2;
+
 		Eigen::MatrixXd inputs;
 		Eigen::MatrixXd l1;
 		Eigen::MatrixXd l2;
@@ -33,11 +38,13 @@ class neural_net
 	public:
 		neural_net(std::string base_path, std::vector<int> hidden_layer_sizes);
 		~neural_net();
-
+		
+		void train();
 		void create_arch();
-		void feed_forward();
+		void feed_forward();//Eigen::MatrixXd in);
 		void back_propagation();
 		int get_error();
 		Eigen::MatrixXd get_error_gradient();
+		double get_accuracy();
 };
 #endif
