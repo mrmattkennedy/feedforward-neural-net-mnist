@@ -1,0 +1,1 @@
+This is my python implementation of a neural network. Utilizes decay for the learning rate, momentum with gradient descent, and shuffling data sets with batches. Reporting over 99.9% accuracy currently after 150 epochs.

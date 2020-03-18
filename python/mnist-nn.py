@@ -115,14 +115,12 @@ def train():
 
             X_batch = X_train[begin:end]
             y_batch = y_train[begin:end]
-            
+
             # Feed forward
             outputs = feed_forward(X_batch, weights)
-
-            # Backpropagate, get error as well
+            # Backpropagate, get error as well            
             output_error, deltas = back_propagation(weights, outputs, X_batch, y_batch)
             
-
             #Using velocities for momentum in SGD
             velocities['W3'] = opts.beta * velocities['W3'] + (1 - opts.beta) * deltas['dW3']
             velocities['b3'] = opts.beta * velocities['b3'] + (1 - opts.beta) * deltas['db3']
@@ -184,16 +182,17 @@ def feed_forward(inputs, weights):
     
 def sigmoid(z):
     z = np.clip(z, -500, 500)
-    return 1/(1 + np.exp(-z))
+    denom = 1 + np.exp(-z)
+    return 1/denom
 
 def sigmoid_prime(z):
     return z * (1 - z)
     
 def softmax(z):
     t = np.exp(z)
-    a = np.exp(z) / np.sum(t, axis=1).reshape(-1,1)
+    t_sum = np.sum(t, axis=1).reshape(-1, 1)
+    a = t / t_sum
     return a
-        
 
 
 def back_propagation(weights, outputs, train_input, train_target):
@@ -230,7 +229,6 @@ def back_propagation(weights, outputs, train_input, train_target):
     #Append the bias
     deltas['db2'] = np.sum(hidden_error_2, axis=0, keepdims=True) / error_gradient.shape[0]
 
-    pdb.set_trace()
     #Get error for the hidden layer output(previous layer error * weights)
     hidden_out_error = np.dot(hidden_error_2, weights['W2'].T)
 

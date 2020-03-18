@@ -1,2 +1,1 @@
-This is the C++ implementation of a cnn for the MNIST data set.  Can just use make, but better is:
-g++ -I include/ -mavx -g -O3 -DNDEBUG -fopenmp src/*.cpp
+This is the C++ implementation of a cnn for the MNIST data set. Currently very slow, even compared to python, but hopefully in future implementations will speed things up. Accuracy is similar to the python library.
