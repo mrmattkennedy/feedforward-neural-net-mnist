@@ -1,38 +1,28 @@
+import pycuda.autoinit
+import pycuda.gpuarray as gpuarray
 import numpy as np
+import skcuda.linalg as linalg
+import skcuda.misc as misc
 import time
-import threading
+import pdb
 
-def regular():
-    temp = np.random.randn(size * 10, size)
-    temp2 = np.random.rand(size, size)
-    start = time.time()
-    np.dot(temp, temp2)
-    print("Regular: {}".format(time.time() - start))
+"""
+linalg.init()
+a = np.asarray(np.random.rand(1000, 10000), np.float32)
+b = np.asarray(np.random.rand(10000, 2000), np.float32)
+a_gpu = gpuarray.to_gpu(a)
+b_gpu = gpuarray.to_gpu(b)
 
-def threaded():
-    temp = np.random.randn(size * 10, size)
-    print(temp.flags)
-    temp2 = np.random.rand(size, size)
-    start = time.time()
-
-    thread_list = []
-    chunks = 5
-    temp_split = np.array(np.split(temp, chunks))
-
-    for i in range(chunks):
-        temp_thread = threading.Thread(target=np.dot, args=(temp_split[i], temp2))
-        thread_list.append(temp_thread)
-        temp_thread.start()
-        
-    for thread in thread_list:
-        thread.join(30)
-        
-    print("Threaded: {}".format(time.time() - start))
-    
-size = 1000
-
-
+start = time.time()
 for _ in range(1):
-    regular()
-    threaded()
-    print()
+    np.dot(a, b)
+print(time.time() - start)
+
+start = time.time()
+for _ in range(50):
+    pdb.set_trace()
+    linalg.dot(a_gpu, b_gpu)
+print(time.time() - start)
+"""
+temp = np.array([1, 2, 3])
+print(np.tile(temp, 2).reshape((-1,temp.shape[0])))

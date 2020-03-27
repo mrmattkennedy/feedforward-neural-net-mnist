@@ -6,6 +6,10 @@ import argparse
 import traceback
 import idx2numpy
 import numpy as np
+import skcuda.misc as misc
+import skcuda.linalg as linalg
+import pycuda.autoinit
+import pycuda.gpuarray as gpuarray
 from pathlib import Path
 
 
@@ -59,29 +63,38 @@ def init_data():
     train_data = np.vstack((train_image_data, test_image_data))
     label_data = np.hstack((train_label_data, test_label_data))
 
-    return train_data, label_data
+    return train_data.astype(np.float32), label_data.astype(np.float32)
 
 def init_weights(arch):
     weights = {
-        "W1" : np.random.randn(arch[0][0], arch[0][1]) * np.sqrt(1 / arch[0][0]),
+        "W1" : gpuarray.to_gpu(np.asarray(np.random.randn(arch[0][0], arch[0][1]) * np.sqrt(1 / arch[0][0]), np.float32)),
         "b1" : np.random.randn(1, arch[0][1]) * np.sqrt(1 / arch[0][0]),
-        "W2" : np.random.randn(arch[1][0], arch[1][1]) * np.sqrt(1 / arch[1][0]),
+        "W2" : gpuarray.to_gpu(np.asarray(np.random.randn(arch[1][0], arch[1][1]) * np.sqrt(1 / arch[1][0]), np.float32)),
         "b2" : np.random.randn(1, arch[1][1]) * np.sqrt(1 / arch[1][1]),
-        "W3" : np.random.randn(arch[2][0], arch[2][1]) * np.sqrt(1 / arch[2][0]),
+        "W3" : gpuarray.to_gpu(np.asarray(np.random.randn(arch[2][0], arch[2][1]) * np.sqrt(1 / arch[2][0]), np.float32)),
         "b3" : np.random.randn(1, arch[2][1]) * np.sqrt(1 / arch[2][1])
         }
+
+    #Reshape bias weights
     
+    weights['b1'] = weights['b1'].reshape(weights['b1'].shape[1])
+    weights['b2'] = weights['b2'].reshape(weights['b2'].shape[1])
+    weights['b3'] = weights['b3'].reshape(weights['b3'].shape[1])
+    
+    weights['b1'] = gpuarray.to_gpu(np.asarray(np.tile(weights['b1'], (opts.batch_size, 1)), np.float32))
+    weights['b2'] = gpuarray.to_gpu(np.asarray(np.tile(weights['b2'], (opts.batch_size, 1)), np.float32))
+    weights['b3'] = gpuarray.to_gpu(np.asarray(np.tile(weights['b3'], (opts.batch_size, 1)), np.float32))
     return weights
 
 
 def init_velocities(arch):
     velocities = {
-        "W1" : np.zeros((arch[0][0], arch[0][1])),
-        "b1" : np.zeros((1, arch[0][1])),
-        "W2" : np.zeros((arch[1][0], arch[1][1])),
-        "b2" : np.zeros((1, arch[1][1])),
-        "W3" : np.zeros((arch[2][0], arch[2][1])),
-        "b3" : np.zeros((1, arch[2][1]))
+        "W1" : gpuarray.to_gpu(np.asarray(np.zeros((arch[0][0], arch[0][1])), np.float32)),
+        "b1" : gpuarray.to_gpu(np.asarray(np.zeros((1, arch[0][1])), np.float32)),
+        "W2" : gpuarray.to_gpu(np.asarray(np.zeros((arch[1][0], arch[1][1])), np.float32)),
+        "b2" : gpuarray.to_gpu(np.asarray(np.zeros((1, arch[1][1])), np.float32)),
+        "W3" : gpuarray.to_gpu(np.asarray(np.zeros((arch[2][0], arch[2][1])), np.float32)),
+        "b3" : gpuarray.to_gpu(np.asarray(np.zeros((1, arch[2][1])), np.float32))
         }
 
     return velocities
@@ -89,6 +102,7 @@ def init_velocities(arch):
     
 def train():
     #Get opts, data, weights, velocities
+    linalg.init()
     X, y = init_data()
     arch = ((opts.n_x, opts.n_h), (opts.n_h, opts.n_h2), (opts.n_h2, opts.n_o))
     weights = init_weights(arch)
@@ -113,9 +127,9 @@ def train():
             begin = k * opts.batch_size
             end = begin + opts.batch_size
 
-            X_batch = X_train[begin:end]
-            y_batch = y_train[begin:end]
-
+            X_batch = gpuarray.to_gpu(np.asarray(X_train[begin:end], np.float32))
+            y_batch = gpuarray.to_gpu(np.asarray(y_train[begin:end], np.float32))
+            
             # Feed forward
             outputs = feed_forward(X_batch, weights)
             # Backpropagate, get error as well            
@@ -155,23 +169,24 @@ def train():
 
     
 def feed_forward(inputs, weights):
+    start = time.time()
     #Empty return dict
     outputs = {}
-    
+
     #Dot product of input value and weight
-    z1 = np.dot(inputs, weights['W1']) + weights['b1']
-    
+    z1 = linalg.dot(inputs, weights['W1']) + weights['b1']
+
     #Input is now equal to activation of output
     a1 = sigmoid(z1)
 
     #Dot product of input value and weight
-    z2 = np.dot(a1, weights['W2']) + weights['b2']
+    z2 = linalg.dot(a1, weights['W2']) + weights['b2']
     
     #Input is now equal to activation of output
     a2 = sigmoid(z2)
     
     #Dot product of hidden layer out and weight
-    z3 = np.dot(a2, weights['W3']) + weights['b3']
+    z3 = linalg.dot(a2, weights['W3']) + weights['b3']
 
     #Run through softmax
     a3 = softmax(z3)
@@ -181,18 +196,20 @@ def feed_forward(inputs, weights):
 
     
 def sigmoid(z):
-    z = np.clip(z, -500, 500)
-    denom = 1 + np.exp(-z)
-    return 1/denom
+    np_z = z.get()
+    np_z = np.clip(np_z, -88, 88) #min/max of 32 bit single prec float is 3.402 * 10^38
+    denom = 1 + np.exp(-np_z)
+    return gpuarray.to_gpu(np.asarray(1/denom, np.float32))
 
 def sigmoid_prime(z):
     return z * (1 - z)
     
 def softmax(z):
-    t = np.exp(z)
+    np_z = z.get()
+    t = np.exp(np_z)
     t_sum = np.sum(t, axis=1).reshape(-1, 1)
     a = t / t_sum
-    return a
+    return  gpuarray.to_gpu(a.astype(np.float32))
 
 
 def back_propagation(weights, outputs, train_input, train_target):

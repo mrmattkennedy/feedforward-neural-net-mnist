@@ -63,15 +63,10 @@ void neural_net::train()
 			b2.noalias() -= (opts.alpha * v_b2);
 			w1.noalias() -= (opts.alpha * v_w1);
 			b1.noalias() -= (opts.alpha * v_b1);
-			/*
-			w2.noalias() -= (opts.alpha * out_delta);
-			b2.noalias() -= (opts.alpha * out_bias_delta);
-			w1.noalias() -= (opts.alpha * hidden_delta);
-			b1.noalias() -= (opts.alpha * hidden_bias_delta);
-			*/
 		}
+
 		if (i % 1 == 0)
-			printf("Epoch %5d\tloss: %5d\taccuracy: %.4f\n", i, model_error, get_accuracy());	
+			printf("Epoch %5d\tloss: %5d\taccuracy: %4f\n", i, model_error, get_accuracy());	
 	}
 		
 }
