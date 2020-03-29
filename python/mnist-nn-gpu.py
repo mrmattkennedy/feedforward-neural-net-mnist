@@ -22,7 +22,7 @@ def init_params():
                         help='learning rate')
     parser.add_argument('--decay', type=float, default=0.0001,
                         help='learning rate decay')
-    parser.add_argument('--epochs', type=int, default=251,
+    parser.add_argument('--epochs', type=int, default=101,
                         help='number of epochs to train')
     parser.add_argument('--n_x', type=int, default=784,
                         help='number of inputs')
@@ -34,9 +34,9 @@ def init_params():
                         help='number of output units')
     parser.add_argument('--beta', type=float, default=0.9,
                         help='parameter for momentum')
-    parser.add_argument('--batch_size', type=int, default=10000,
+    parser.add_argument('--batch_size', type=int, default=5000,
                         help='input batch size')
-    parser.add_argument('--batches', type=int, default=6,
+    parser.add_argument('--batches', type=int, default=12,
                         help='batch iterations')
     return parser.parse_args()
 
@@ -119,6 +119,7 @@ def train():
     #Train for n epochs
     for j in range(opts.epochs + 1):
         if j == 1:
+            #First iteration initializes GPU calculations, extremely slow.
             start_time = time.time()
         
         #Shuffle data
@@ -142,7 +143,6 @@ def train():
             y_batch = y_train[begin:end]
             
             # Feed forward
-            #pdb.set_trace()
             outputs = feed_forward(X_batch, weights)
             
             # Backpropagate, get error as well            
@@ -163,20 +163,23 @@ def train():
             weights['b2'] = weights['b2'] - opts.alpha * velocities['b2']
             weights['W1'] = weights['W1'] - opts.alpha * velocities['W1']
             weights['b1'] = weights['b1'] - opts.alpha * velocities['b1']
+            
         # From time to time, reporting the results
         if (j % 5) == 0:
             train_error = np.mean(np.abs(output_error))
             print('Epoch {:5}'.format(j), end=' - ')
             print('loss: {:0.6f}'.format(train_error), end= ' - ')
 
-            outputs = feed_forward(X_train, weights)
-            train_accuracy = accuracy(target=y_train, predictions=(get_predictions(outputs, y_train)))
+            #Get measurements
+            outputs = feed_forward(X_train[:opts.batch_size], weights)
+            #pdb.set_trace()
+            train_accuracy = accuracy(target=y_train[:opts.batch_size], predictions=(get_predictions(outputs, y_train[:opts.batch_size])))
             test_preds = predict(X_test, y_test, weights)
             test_accuracy = accuracy(target=y_test, predictions=test_preds)
 
+            #Display measurements
             print('acc: train {:0.6f}'.format(train_accuracy), end= ' | ')
             print('test {:0.6f}'.format(test_accuracy))
-            #print('alpha {:0.6f}'.format(opts.alpha))
 
 
     print(time.time() - start_time)
