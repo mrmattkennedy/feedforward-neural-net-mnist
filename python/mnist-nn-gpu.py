@@ -10,6 +10,7 @@ import skcuda.misc as misc
 import skcuda.linalg as linalg
 import pycuda.autoinit
 import pycuda.gpuarray as gpuarray
+import pycuda.cumath as cumath
 from pathlib import Path
 
 
@@ -21,7 +22,7 @@ def init_params():
                         help='learning rate')
     parser.add_argument('--decay', type=float, default=0.0001,
                         help='learning rate decay')
-    parser.add_argument('--epochs', type=int, default=250,
+    parser.add_argument('--epochs', type=int, default=251,
                         help='number of epochs to train')
     parser.add_argument('--n_x', type=int, default=784,
                         help='number of inputs')
@@ -33,9 +34,9 @@ def init_params():
                         help='number of output units')
     parser.add_argument('--beta', type=float, default=0.9,
                         help='parameter for momentum')
-    parser.add_argument('--batch_size', type=int, default=300,
+    parser.add_argument('--batch_size', type=int, default=10000,
                         help='input batch size')
-    parser.add_argument('--batches', type=int, default=200,
+    parser.add_argument('--batches', type=int, default=6,
                         help='batch iterations')
     return parser.parse_args()
 
@@ -63,7 +64,7 @@ def init_data():
     train_data = np.vstack((train_image_data, test_image_data))
     label_data = np.hstack((train_label_data, test_label_data))
 
-    return train_data.astype(np.float32), label_data.astype(np.float32)
+    return gpuarray.to_gpu(train_data.astype(np.float32)), gpuarray.to_gpu(label_data.astype(np.float32))
 
 def init_weights(arch):
     weights = {
@@ -76,7 +77,6 @@ def init_weights(arch):
         }
 
     #Reshape bias weights
-    
     weights['b1'] = weights['b1'].reshape(weights['b1'].shape[1])
     weights['b2'] = weights['b2'].reshape(weights['b2'].shape[1])
     weights['b3'] = weights['b3'].reshape(weights['b3'].shape[1])
@@ -90,13 +90,21 @@ def init_weights(arch):
 def init_velocities(arch):
     velocities = {
         "W1" : gpuarray.to_gpu(np.asarray(np.zeros((arch[0][0], arch[0][1])), np.float32)),
-        "b1" : gpuarray.to_gpu(np.asarray(np.zeros((1, arch[0][1])), np.float32)),
+        "b1" : np.zeros((1, arch[0][1])),
         "W2" : gpuarray.to_gpu(np.asarray(np.zeros((arch[1][0], arch[1][1])), np.float32)),
-        "b2" : gpuarray.to_gpu(np.asarray(np.zeros((1, arch[1][1])), np.float32)),
+        "b2" : np.zeros((1, arch[1][1])),
         "W3" : gpuarray.to_gpu(np.asarray(np.zeros((arch[2][0], arch[2][1])), np.float32)),
-        "b3" : gpuarray.to_gpu(np.asarray(np.zeros((1, arch[2][1])), np.float32))
+        "b3" : np.zeros((1, arch[2][1]))
         }
 
+    #Reshape bias weights
+    velocities['b1'] = velocities['b1'].reshape(velocities['b1'].shape[1])
+    velocities['b2'] = velocities['b2'].reshape(velocities['b2'].shape[1])
+    velocities['b3'] = velocities['b3'].reshape(velocities['b3'].shape[1])
+    
+    velocities['b1'] = gpuarray.to_gpu(np.asarray(np.tile(velocities['b1'], (opts.batch_size, 1)), np.float32))
+    velocities['b2'] = gpuarray.to_gpu(np.asarray(np.tile(velocities['b2'], (opts.batch_size, 1)), np.float32))
+    velocities['b3'] = gpuarray.to_gpu(np.asarray(np.tile(velocities['b3'], (opts.batch_size, 1)), np.float32))
     return velocities
 
     
@@ -110,10 +118,13 @@ def train():
     
     #Train for n epochs
     for j in range(opts.epochs + 1):
+        if j == 1:
+            start_time = time.time()
+        
         #Shuffle data
         permutation = np.random.permutation(X.shape[0])
-        X = X[permutation]
-        y = y[permutation]
+        X = gpuarray.to_gpu(X.get()[permutation])
+        y = gpuarray.to_gpu(y.get()[permutation])
         
         #Get the train and test data
         X_train = X[:opts.batch_size * opts.batches]
@@ -127,11 +138,13 @@ def train():
             begin = k * opts.batch_size
             end = begin + opts.batch_size
 
-            X_batch = gpuarray.to_gpu(np.asarray(X_train[begin:end], np.float32))
-            y_batch = gpuarray.to_gpu(np.asarray(y_train[begin:end], np.float32))
+            X_batch = X_train[begin:end]
+            y_batch = y_train[begin:end]
             
             # Feed forward
+            #pdb.set_trace()
             outputs = feed_forward(X_batch, weights)
+            
             # Backpropagate, get error as well            
             output_error, deltas = back_propagation(weights, outputs, X_batch, y_batch)
             
@@ -150,7 +163,6 @@ def train():
             weights['b2'] = weights['b2'] - opts.alpha * velocities['b2']
             weights['W1'] = weights['W1'] - opts.alpha * velocities['W1']
             weights['b1'] = weights['b1'] - opts.alpha * velocities['b1']
-            
         # From time to time, reporting the results
         if (j % 5) == 0:
             train_error = np.mean(np.abs(output_error))
@@ -165,11 +177,11 @@ def train():
             print('acc: train {:0.6f}'.format(train_accuracy), end= ' | ')
             print('test {:0.6f}'.format(test_accuracy))
             #print('alpha {:0.6f}'.format(opts.alpha))
-            
 
+
+    print(time.time() - start_time)
     
 def feed_forward(inputs, weights):
-    start = time.time()
     #Empty return dict
     outputs = {}
 
@@ -196,20 +208,23 @@ def feed_forward(inputs, weights):
 
     
 def sigmoid(z):
-    np_z = z.get()
-    np_z = np.clip(np_z, -88, 88) #min/max of 32 bit single prec float is 3.402 * 10^38
-    denom = 1 + np.exp(-np_z)
-    return gpuarray.to_gpu(np.asarray(1/denom, np.float32))
+    #Reduce with factor?
+    z_max = gpuarray.max(z).get()
+    z_min = gpuarray.min(z).get()
+    largest_value = max(z_max, abs(z_min))
+    factor = 88 / largest_value #float32 precision requires max value for exp to be 88
+    z = (z * factor).astype(np.float32)
+    return 1 / (1 + cumath.exp(-z))
 
 def sigmoid_prime(z):
     return z * (1 - z)
     
 def softmax(z):
-    np_z = z.get()
-    t = np.exp(np_z)
-    t_sum = np.sum(t, axis=1).reshape(-1, 1)
-    a = t / t_sum
-    return  gpuarray.to_gpu(a.astype(np.float32))
+    t = cumath.exp(z)
+    t_sum = misc.sum(t, axis=1)
+    #Convert gpuarray to nparray, repeat each item in the row to match shape of t, then convert back to gpuarray
+    a = t / gpuarray.to_gpu(np.repeat(t_sum.get(), t.shape[1]).reshape((t.shape[0], t.shape[1])))
+    return  a
 
 
 def back_propagation(weights, outputs, train_input, train_target):
@@ -222,44 +237,49 @@ def back_propagation(weights, outputs, train_input, train_target):
     error_gradient = error_derivative(train_target, outputs['A3'])
 
     #Output delta (gradient) is error derivative * hidden layer outs (average for batch)
-    out_delta = np.dot(outputs['A2'].T, error_gradient) / error_gradient.shape[0]
+    out_delta = linalg.dot(linalg.transpose(outputs['A2']), error_gradient) / error_gradient.shape[0]
 
     #Append the delta
     deltas['dW3'] = out_delta
 
     #Append the bias
-    deltas['db3'] = np.sum(error_gradient, axis=0, keepdims=True) / error_gradient.shape[0]
-
+    deltas['db3'] = misc.sum(error_gradient, axis=0) / error_gradient.shape[0]
 
     #Get error for the hidden layer output(previous layer error * weights)
-    hidden_out_error_2 = np.dot(error_gradient, weights['W3'].T)
+    hidden_out_error_2 = linalg.dot(error_gradient, linalg.transpose(weights['W3']))
 
     #Hidden layer error is output error * outputs * sigmoid prime
     hidden_error_2 = hidden_out_error_2 * outputs['A2'] * sigmoid_prime(outputs['A2'])
 
     #Delta is input * error
-    hidden_delta_2 = np.matmul(outputs['A1'].T, hidden_error_2)
+    hidden_delta_2 = linalg.dot(linalg.transpose(outputs['A1']), hidden_error_2)
 
     #Append the delta
     deltas['dW2'] = hidden_delta_2
 
     #Append the bias
-    deltas['db2'] = np.sum(hidden_error_2, axis=0, keepdims=True) / error_gradient.shape[0]
+    deltas['db2'] = misc.sum(hidden_error_2, axis=0) / error_gradient.shape[0]
 
     #Get error for the hidden layer output(previous layer error * weights)
-    hidden_out_error = np.dot(hidden_error_2, weights['W2'].T)
+    hidden_out_error = linalg.dot(hidden_error_2, linalg.transpose(weights['W2']))
 
     #Hidden layer error is output error * outputs * sigmoid prime
     hidden_error = hidden_out_error * outputs['A1'] * sigmoid_prime(outputs['A1'])
 
     #Delta is input * error
-    hidden_delta = np.matmul(train_input.T, hidden_error)
+    hidden_delta = linalg.dot(linalg.transpose(train_input), hidden_error)
 
     #Append the delta
     deltas['dW1'] = hidden_delta
 
     #Append the bias
-    deltas['db1'] = np.sum(hidden_error, axis=0, keepdims=True) / error_gradient.shape[0]
+    deltas['db1'] = misc.sum(hidden_error, axis=0) / error_gradient.shape[0]
+
+    #Reshape bias deltas
+    
+    deltas['db1'] = gpuarray.to_gpu(np.asarray(np.tile(deltas['db1'].get(), (opts.batch_size, 1)), np.float32))
+    deltas['db2'] = gpuarray.to_gpu(np.asarray(np.tile(deltas['db2'].get(), (opts.batch_size, 1)), np.float32))
+    deltas['db3'] = gpuarray.to_gpu(np.asarray(np.tile(deltas['db3'].get(), (opts.batch_size, 1)), np.float32))
     
     #Return
     return output_error, deltas
@@ -274,21 +294,22 @@ def calculate_error(target, output):
     reshaped_target = np.zeros((rows, opts.n_o))
 
     #Change index of correct predictions to a 1
-    reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
-
+    reshaped_target[np.arange(reshaped_target.shape[0]), target.get().astype(np.int32)]=1
+    reshaped_target = gpuarray.to_gpu(reshaped_target.astype(np.float32))
+    
     #Add up the error
-    ce = -np.sum(reshaped_target * np.log(output + 1e-8))
+    ce = gpuarray.sum(reshaped_target * cumath.log(output + 1e-10)).get()
 
     #Round and return
-    return round(ce, 2)
+    return round(abs(ce), 2)
 
 
 
 def error_derivative(target, output):
-    
     rows, cols = output.shape
     reshaped_target = np.zeros((rows, opts.n_o))
-    reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
+    reshaped_target[np.arange(reshaped_target.shape[0]), target.get().astype(np.int32)]=1
+    reshaped_target = gpuarray.to_gpu(reshaped_target.astype(np.float32))
     return output - reshaped_target
 
 
@@ -303,12 +324,21 @@ def accuracy(target, predictions):
 
 
 def predict(inputs, target, weights):
+    #Reshape bias weights
+    weights['b1'] = gpuarray.to_gpu(np.asarray(np.tile(weights['b1'].get()[0], (inputs.shape[0], 1)), np.float32))
+    weights['b2'] = gpuarray.to_gpu(np.asarray(np.tile(weights['b2'].get()[0], (inputs.shape[0], 1)), np.float32))
+    weights['b3'] = gpuarray.to_gpu(np.asarray(np.tile(weights['b3'].get()[0], (inputs.shape[0], 1)), np.float32))
+    
     #Feed forward test inputs
     outputs = feed_forward(inputs, weights)
 
     #Get the predictions in a usable format
     preds = get_predictions(outputs, target=target).astype(int)
 
+    #Reshape bias weights back
+    weights['b1'] = gpuarray.to_gpu(np.asarray(np.tile(weights['b1'].get()[0], (opts.batch_size, 1)), np.float32))
+    weights['b2'] = gpuarray.to_gpu(np.asarray(np.tile(weights['b2'].get()[0], (opts.batch_size, 1)), np.float32))
+    weights['b3'] = gpuarray.to_gpu(np.asarray(np.tile(weights['b3'].get()[0], (opts.batch_size, 1)), np.float32))
     #Return preds
     return preds
 
@@ -316,13 +346,12 @@ def predict(inputs, target, weights):
 
 def get_predictions(outputs, target):
     #For each row, get the predictions (where the 1 is)
-    predicts = np.argmax(outputs['A3'], axis=1)
+    predicts = np.argmax(outputs['A3'].get(), axis=1)
 
     #Return where predictions match target
-    return predicts == target
+    return predicts == target.get()
 
 
-start_time = time.time()
-opts = init_params()
-train()
-print("--- %s seconds ---" % (time.time() - start_time))
+if __name__ == '__main__':
+    opts = init_params()
+    train()

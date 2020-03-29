@@ -6,23 +6,26 @@ import skcuda.misc as misc
 import time
 import pdb
 
-"""
+
 linalg.init()
-a = np.asarray(np.random.rand(1000, 10000), np.float32)
-b = np.asarray(np.random.rand(10000, 2000), np.float32)
+
+start = time.time()
+for _ in range(5):
+    a = np.asarray(np.random.rand(60000, 784), np.float32)
+    b = np.asarray(np.random.rand(784, 600), np.float32)
+    d = np.asarray(np.random.rand(600, 500), np.float32)
+    np.dot(np.dot(a, b), d)
+print(time.time() - start)
+
+start = time.time()
+a = np.asarray(np.random.rand(60000, 784), np.float32)
+b = np.asarray(np.random.rand(784, 600), np.float32)
+d = np.asarray(np.random.rand(600, 500), np.float32)
 a_gpu = gpuarray.to_gpu(a)
 b_gpu = gpuarray.to_gpu(b)
-
-start = time.time()
-for _ in range(1):
-    np.dot(a, b)
+d_gpu = gpuarray.to_gpu(d)
+for _ in range(20):
+    c = linalg.dot(a_gpu, b_gpu)
+    e = linalg.dot(c, d_gpu)
 print(time.time() - start)
 
-start = time.time()
-for _ in range(50):
-    pdb.set_trace()
-    linalg.dot(a_gpu, b_gpu)
-print(time.time() - start)
-"""
-temp = np.array([1, 2, 3])
-print(np.tile(temp, 2).reshape((-1,temp.shape[0])))
