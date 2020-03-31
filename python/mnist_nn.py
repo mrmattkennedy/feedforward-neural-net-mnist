@@ -17,7 +17,7 @@ def init_params():
                         help='learning rate')
     parser.add_argument('--decay', type=float, default=0.0001,
                         help='learning rate decay')
-    parser.add_argument('--epochs', type=int, default=250,
+    parser.add_argument('--epochs', type=int, default=50,
                         help='number of epochs to train')
     parser.add_argument('--n_x', type=int, default=784,
                         help='number of inputs')
@@ -93,9 +93,13 @@ def train():
     arch = ((opts.n_x, opts.n_h), (opts.n_h, opts.n_h2), (opts.n_h2, opts.n_o))
     weights = init_weights(arch)
     velocities = init_velocities(arch)
+    opts.alpha = 0.002
     
+    start_time = time.time()
+    accuracies = []
     #Train for n epochs
-    for j in range(opts.epochs + 1):
+    for j in range(opts.epochs):
+        
         #Shuffle data
         permutation = np.random.permutation(X.shape[0])
         X = X[permutation]
@@ -138,7 +142,7 @@ def train():
             weights['b1'] = weights['b1'] - opts.alpha * velocities['b1']
             
         # From time to time, reporting the results
-        if (j % 5) == 0:
+        if (j % 1) == 0:
             train_error = np.mean(np.abs(output_error))
             print('Epoch {:5}'.format(j), end=' - ')
             print('loss: {:0.6f}'.format(train_error), end= ' - ')
@@ -150,9 +154,9 @@ def train():
 
             print('acc: train {:0.6f}'.format(train_accuracy), end= ' | ')
             print('test {:0.6f}'.format(test_accuracy))
-            #print('alpha {:0.6f}'.format(opts.alpha))
+            accuracies.append(test_accuracy)
             
-
+    return time.time() - start_time, accuracies
     
 def feed_forward(inputs, weights):
     #Empty return dict
@@ -305,7 +309,39 @@ def get_predictions(outputs, target):
     return predicts == target
 
 
-start_time = time.time()
+
+def save_results():
+    train_size = 60000    
+    batch_sizes = [int(line.rstrip('\n')) for line in open('data/batch_sizes.data', 'r').readline().split(', ')]
+    batch_sizes = [item for item in batch_sizes if item >= 30]
+    
+    times = {}
+    accuracies = {}
+        
+    for size in batch_sizes:    
+        opts.batch_size = size
+        opts.batches = int(train_size / opts.batch_size)
+        total_time, results = train()
+
+        times[size] = total_time
+        accuracies[size] = results
+
+    cpu_times_path = 'data\\cpu_times.dat'
+    cpu_accuracy_path = 'data\\cpu_accuracy.dat'
+
+    with open(cpu_times_path, 'w') as file:
+        for key, value in times.items():
+            line = str(key) + ',' + str(value)
+            file.write(line + '\n')
+    
+    with open(cpu_accuracy_path, 'w') as file:
+        for key, value in accuracies.items():
+            for item in value:
+                line = str(key) + ',' + str(item)
+                file.write(line + '\n')
+            file.write('\n')
+            
 opts = init_params()
-train()
-print("--- %s seconds ---" % (time.time() - start_time))
+if __name__ == '__main__':
+    save_results()
+

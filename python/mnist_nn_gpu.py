@@ -22,7 +22,7 @@ def init_params():
                         help='learning rate')
     parser.add_argument('--decay', type=float, default=0.0001,
                         help='learning rate decay')
-    parser.add_argument('--epochs', type=int, default=101,
+    parser.add_argument('--epochs', type=int, default=50,
                         help='number of epochs to train')
     parser.add_argument('--n_x', type=int, default=784,
                         help='number of inputs')
@@ -34,9 +34,9 @@ def init_params():
                         help='number of output units')
     parser.add_argument('--beta', type=float, default=0.9,
                         help='parameter for momentum')
-    parser.add_argument('--batch_size', type=int, default=5000,
+    parser.add_argument('--batch_size', type=int, default=10000,
                         help='input batch size')
-    parser.add_argument('--batches', type=int, default=12,
+    parser.add_argument('--batches', type=int, default=6,
                         help='batch iterations')
     return parser.parse_args()
 
@@ -115,12 +115,12 @@ def train():
     arch = ((opts.n_x, opts.n_h), (opts.n_h, opts.n_h2), (opts.n_h2, opts.n_o))
     weights = init_weights(arch)
     velocities = init_velocities(arch)
+    opts.alpha = 0.002
     
+    epoch_accuracies = []
+    start_time = time.time()
     #Train for n epochs
-    for j in range(opts.epochs + 1):
-        if j == 1:
-            #First iteration initializes GPU calculations, extremely slow.
-            start_time = time.time()
+    for j in range(opts.epochs):            
         
         #Shuffle data
         permutation = np.random.permutation(X.shape[0])
@@ -163,9 +163,9 @@ def train():
             weights['b2'] = weights['b2'] - opts.alpha * velocities['b2']
             weights['W1'] = weights['W1'] - opts.alpha * velocities['W1']
             weights['b1'] = weights['b1'] - opts.alpha * velocities['b1']
-            
+    
         # From time to time, reporting the results
-        if (j % 5) == 0:
+        if (j % 1) == 0:
             train_error = np.mean(np.abs(output_error))
             print('Epoch {:5}'.format(j), end=' - ')
             print('loss: {:0.6f}'.format(train_error), end= ' - ')
@@ -180,9 +180,10 @@ def train():
             #Display measurements
             print('acc: train {:0.6f}'.format(train_accuracy), end= ' | ')
             print('test {:0.6f}'.format(test_accuracy))
+            
+            epoch_accuracies.append(test_accuracy)
 
-
-    print(time.time() - start_time)
+    return (time.time() - start_time), epoch_accuracies
     
 def feed_forward(inputs, weights):
     #Empty return dict
@@ -355,6 +356,46 @@ def get_predictions(outputs, target):
     return predicts == target.get()
 
 
-if __name__ == '__main__':
-    opts = init_params()
+
+def save_results():
+    #First iteration using cuda initalizes everything, extremely slow, skews results.
+    #Run one epoch just to initialize, then run tests.
+    train_size = 60000
+    opts.batch_size = train_size
+    opts.batches = 1
+    opts.epochs = 1
     train()
+    opts.epochs = 50
+    
+    batch_sizes = [int(item.rstrip('\n')) for item in open('data/batch_sizes.data', 'r').readline().split(', ')]
+    batch_sizes = [item for item in batch_sizes if item >= 30]
+    
+    times = {}
+    accuracies = {}
+        
+    for size in batch_sizes:    
+        opts.batch_size = size
+        opts.batches = int(train_size / opts.batch_size)
+        total_time, results = train()
+
+        times[size] = total_time
+        accuracies[size] = results
+
+    gpu_times_path = 'data\\gpu_times.dat'
+    gpu_accuracy_path = 'data\\gpu_accuracy.dat'
+
+    with open(gpu_times_path, 'w') as file:
+        for key, value in times.items():
+            line = str(key) + ',' + str(value)
+            file.write(line + '\n')
+    
+    with open(gpu_accuracy_path, 'w') as file:
+        for key, value in accuracies.items():
+            for item in value:
+                line = str(key) + ',' + str(item)
+                file.write(line + '\n')
+            file.write('\n')
+            
+opts = init_params()
+if __name__ == '__main__':
+    save_results()
