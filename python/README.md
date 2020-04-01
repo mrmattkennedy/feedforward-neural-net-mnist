@@ -6,7 +6,7 @@ Created GPU version as well to compare time and accuracy with CUDA library. See 
 * GPU accuracy mostly peaks above 0.99 accuracy at each size, whereas CPU never manages to do this
 * Gap in CPU vs GPU accuracy closes as batch size increases
 
-The table below showcases the timing difference and accuracy difference for each batch size specified.
+The table below showcases the timing difference and accuracy difference for each batch size specified. Each network ran for 50 epochs (this is true for all data provided, not just this table).
 ![Image of table](https://github.com/mrmattkennedy/neural-network-library/blob/master/python/data/figures/table.png)
 
 The timings were what I was most interested in, so I plotted them using the matplotlib library.
