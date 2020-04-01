@@ -28,18 +28,18 @@ void neural_net::train()
 
 	std::vector<int> shuffle_vector(train_size);
 	std::iota(shuffle_vector.begin(), shuffle_vector.end(), 0);
+	inputs = Eigen::MatrixXd(opts.batch_size, data.rows() * data.cols());
+
+	clock_t start, end;
+	start = clock();
 
 	for (int i = 0; i < opts.epochs; i++)
 	{	
-		//unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    		//std::default_random_engine e(seed);
 		std::random_shuffle(shuffle_vector.begin(), shuffle_vector.end());
-
 		opts.alpha *= (1 / (1 + opts.decay * i));
+
 		for (int j = 0; j < opts.batches; j++)
 		{
-			inputs.resize(0, 0);
-			inputs = Eigen::MatrixXd(opts.batch_size, data.rows() * data.cols());
 			reshaped_target.resize(0, 0);
 			reshaped_target = Eigen::MatrixXd::Zero(opts.batch_size, opts.n_o);
 			for (int i = j * opts.batch_size; i < (j * opts.batch_size) + opts.batch_size; i++)
@@ -47,7 +47,7 @@ void neural_net::train()
 				inputs.row(i - (j * opts.batch_size)) = Eigen::VectorXd::Map(&data.m_images[shuffle_vector[i]][0], data.m_images[shuffle_vector[i]].size());
 				reshaped_target(i -  (j * opts.batch_size), data.m_labels[shuffle_vector[i]]) = 1;
 			}
-			feed_forward();
+			feed_forward(inputs);
 			back_propagation();
 			
 			v_w3.noalias() = (opts.beta * v_w3) + ((1 - opts.beta) * out_delta);
@@ -66,8 +66,23 @@ void neural_net::train()
 		}
 
 		if (i % 1 == 0)
-			printf("Epoch %5d\tloss: %5d\taccuracy: %4f\n", i, model_error, get_accuracy());	
+		{
+			Eigen::MatrixXd test_in = Eigen::MatrixXd(data.size() - train_size, data.rows() * data.cols());
+			test_target = Eigen::MatrixXd::Zero(data.size() - train_size, opts.n_o);
+			for (int i = train_size; i < data.size(); i++)
+			{
+				test_in.row(i - train_size) = Eigen::VectorXd::Map(&data.m_images[i][0], data.m_images[i].size());
+				test_target(i - train_size, data.m_labels[i]) = 1;
+			}
+			feed_forward(test_in);
+			printf("Epoch %5d\tloss: %5d\taccuracy: %4f\n", i, model_error, get_accuracy());
+			test_in.resize(0, 0);
+			test_target.resize(0, 0);
+		}
 	}
+	end = clock();
+	double time_taken = double(end - start) / double(CLOCKS_PER_SEC);
+	printf("%f\n", time_taken);
 		
 }
 
@@ -88,9 +103,9 @@ void neural_net::create_arch()
 	v_b3 = Eigen::MatrixXd::Zero(1, opts.n_o);
 }
 
-void neural_net::feed_forward()
+void neural_net::feed_forward(Eigen::MatrixXd in)
 {
-	Eigen::MatrixXd a1 = inputs * w1;
+	Eigen::MatrixXd a1 = in * w1;
 	for (int i = 0; i < a1.rows(); i++)
 		a1.row(i) += b1.row(0);
 	l1.noalias() = a1.unaryExpr(
@@ -188,7 +203,7 @@ double neural_net::get_accuracy()
 	for (int i = 0; i < l3.rows(); i++)
 	{
 		l3.row(i).maxCoeff(&maxIndex);
-		reshaped_target.row(i).maxCoeff(&target);
+		test_target.row(i).maxCoeff(&target);
 		if (maxIndex == target)
 			accuracy +=1;
 	}

@@ -67,8 +67,8 @@ def train():
     model.add(Dense(500, input_shape=(784,), activation='sigmoid'))
     model.add(Dense(500, activation='tanh'))
     model.add(Dense(10, activation='softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-    model.fit(train_input, train_target, epochs=100, batch_size=60000)
+    model.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
+    model.fit(train_input, train_target, epochs=100, batch_size=500, verbose=2)
     _, accuracy = model.evaluate(test_input, test_target)
 
 def reshape(target):

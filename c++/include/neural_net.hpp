@@ -32,6 +32,7 @@ class neural_net
 		Eigen::MatrixXd l3;
 		
 		Eigen::MatrixXd reshaped_target;
+		Eigen::MatrixXd test_target;
 		int model_error;
 
 		Eigen::MatrixXd out_delta;
@@ -47,7 +48,7 @@ class neural_net
 		
 		void train();
 		void create_arch();
-		void feed_forward();//Eigen::MatrixXd in);
+		void feed_forward(Eigen::MatrixXd in);
 		void back_propagation();
 		int get_error();
 		Eigen::MatrixXd get_error_gradient();
