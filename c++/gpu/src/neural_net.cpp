@@ -8,6 +8,10 @@
 #include <thrust/random.h>
 #include <thrust/transform.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/inner_product.h>
+#include <thrust/execution_policy.h>
+#include <thrust/equal.h>
+#include <cublas_v2.h>
 
 #include <algorithm>
 #include <iostream>
@@ -26,16 +30,14 @@
 struct RandGen
 {
 	//N is size of vector, M is iteration
-	unsigned int M;
 	unsigned int N;
-
-	RandGen(unsigned int _M=1, unsigned int _N=1) : M(_M), N(_N) {};
+	RandGen(unsigned int _N) : N(_N) {};
 
 	__device__ float operator () (unsigned int thread_id)
 	{
 		thrust::default_random_engine randEng;
-		randEng.discard(N * (M+1) * thread_id);
-		thrust::uniform_real_distribution<float> uniDist(-1.0, 1.0);
+		randEng.discard(N * thread_id);
+		thrust::uniform_real_distribution<float> uniDist(0.01, 1.0);
 		return uniDist(randEng);
 	}
 };
@@ -76,6 +78,9 @@ void neural_net::train()
 	start = clock();
 	create_arch();
 	int train_size = 60000;
+	
+	inputs = thrust::device_vector<float>(data.m_images.size());
+	thrust::copy(data.m_images.begin(), data.m_images.end(), inputs.begin());
 
 	//std::vector<int> shuffle_vector(train_size);
 	//std::iota(shuffle_vector.begin(), shuffle_vector.end(), 0);
@@ -93,6 +98,7 @@ void neural_net::train()
 
 	}
 	*/
+	feed_forward();
 	end = clock();
 	double time_taken = double(end - start) / double(CLOCKS_PER_SEC);
 	printf("%f\n", time_taken);
@@ -108,49 +114,44 @@ void neural_net::create_arch()
 	w3 = init_weight(opts.n_h2, opts.n_o);
 	b3 = init_weight(1, opts.n_o);
 
-	v_w1 = init_velocity(opts.n_x, opts.n_h1);
-	v_b1 = init_velocity(1, opts.n_h1);
-	v_w2 = init_velocity(opts.n_h1, opts.n_h2);
-	v_b2 = init_velocity(1, opts.n_h2);
-	v_w3 = init_velocity(opts.n_h2, opts.n_o);
-	v_b3 = init_velocity(1, opts.n_o);
-
-	std::cout << v_w1[0][0] << std::endl;
+	v_w1 = thrust::device_vector<float>(opts.n_x * opts.n_h1, 0);
+	v_b1 = thrust::device_vector<float>(1 * opts.n_h1, 0);
+	v_w2 = thrust::device_vector<float>(opts.n_h1 * opts.n_h2, 0);
+	v_b2 = thrust::device_vector<float>(1 * opts.n_h1, 0);
+	v_w3 = thrust::device_vector<float>(opts.n_h2 * opts.n_o, 0);
+	v_b3 = thrust::device_vector<float>(1 * opts.n_h1, 0);
 }
 
 
-std::vector<thrust::device_vector<float>> neural_net::init_weight(int insize, int outsize)
+thrust::device_vector<float> neural_net::init_weight(int insize, int outsize)
 {
 
-	std::vector<thrust::device_vector<float>> d_vec(insize, thrust::device_vector<float>(outsize));
-	thrust::device_vector<float> temp(outsize);
+	thrust::device_vector<float> d_vec(insize * outsize);
+	thrust::transform(
+		thrust::counting_iterator<int>(0),
+		thrust::counting_iterator<int>(insize * outsize),
+		d_vec.begin(),
+		RandGen(insize * outsize));
 
-	for (unsigned int i = 0; i < insize; i++)
-	{
-		thrust::transform(
-			thrust::counting_iterator<int>(0),
-			thrust::counting_iterator<int>(outsize),
-			temp.begin(),
-			RandGen(i, outsize));
-		d_vec[i] = temp;
-	}
-	temp.clear();
 	return d_vec;
 }
 
 
-std::vector<thrust::device_vector<float>> neural_net::init_velocity(int insize, int outsize)
-{
-	std::vector<thrust::device_vector<float>> d_vec(insize, thrust::device_vector<float>(outsize));
-
-	for (unsigned int i = 0; i < insize; i++)
-		d_vec[i] = thrust::device_vector<float>(outsize, 0);
-
-	return d_vec;
-}
 
 void neural_net::feed_forward()
 {
+	//inputs is 70000x784 (NxM), w1 is 784x600 (MxR),
+	std::cout << w1.size() << ", " << b1.size() << ", " << inputs.size() << std::endl;
+	int n = 1000, m = 100, r = 100;
+	printf("here\n");
+	thrust::device_vector<float> t1(n*m,1);
+	thrust::device_vector<float> t2(m*r,1);
+	thrust::device_vector<float> result(n*r,0);
+	printf("here\n");
+//	thrust::transform(thrust::counting_iterator<int>(0), thrust::counting_iterator<int>(n*r), result.begin(), dp(thrust::raw_pointer_cast(inputs.data()), thrust::raw_pointer_cast(w1.data()), m, n, r));
+	thrust::transform(thrust::counting_iterator<int>(0), thrust::counting_iterator<int>(n*r), result.begin(), dp(thrust::raw_pointer_cast(t1.data()), thrust::raw_pointer_cast(t2.data()), m, n, r));
+	cudaDeviceSynchronize();
+	printf("here\n");
 }
 
 void neural_net::back_propagation()
