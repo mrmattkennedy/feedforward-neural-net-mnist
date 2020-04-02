@@ -56,10 +56,9 @@ void data_reader::load_images(std::string data_path)
 	ifs.read(p, 4);
 	n_cols = to_int(p);
 	
-	printf("%d, %d\n", n_rows, n_cols);
-	//Read elements in
-	/*
-	char q[n_rows*n_cols];
+
+	//Read elements in. Compilers other than g++ don't allow arrays of variable size.
+	char q[28*28];
 	for (int i = 0; i < size; i++)
 	{
 		//Read in rows*cols bytes, assign to a new vector image, push back image on images
@@ -67,12 +66,10 @@ void data_reader::load_images(std::string data_path)
 		std::vector<unsigned char> image;
 		std::copy(q, q+(n_rows*n_cols), std::back_inserter(image));
 		//Reading directly in to a double will use more than 1 byte, giving wrong inputs
-		std::vector<double> double_image(image.begin(), image.end());
+		std::vector<float> double_image(image.begin(), image.end());
 		m_images.push_back(double_image);
 	}
 	
-	delete[] q;
-	*/
 	ifs.close();
 }
 

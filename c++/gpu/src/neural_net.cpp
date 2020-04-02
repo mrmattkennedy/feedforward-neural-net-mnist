@@ -6,6 +6,8 @@
 #include <thrust/reduce.h>
 #include <thrust/generate.h>
 #include <thrust/random.h>
+#include <thrust/transform.h>
+#include <thrust/iterator/counting_iterator.h>
 
 #include <algorithm>
 #include <iostream>
@@ -51,15 +53,16 @@ neural_net::~neural_net()
 
 void neural_net::train()
 {
+	clock_t start, end;
+	start = clock();
 	create_arch();
 	int train_size = 60000;
 
-	std::vector<int> shuffle_vector(train_size);
-	std::iota(shuffle_vector.begin(), shuffle_vector.end(), 0);
+	//std::vector<int> shuffle_vector(train_size);
+	//std::iota(shuffle_vector.begin(), shuffle_vector.end(), 0);
 
-	clock_t start, end;
-	start = clock();
-
+	
+	/*
 	for (int i = 0; i < opts.epochs; i++)
 	{	
 		std::random_shuffle(shuffle_vector.begin(), shuffle_vector.end());
@@ -70,6 +73,7 @@ void neural_net::train()
 		}
 
 	}
+	*/
 	end = clock();
 	double time_taken = double(end - start) / double(CLOCKS_PER_SEC);
 	printf("%f\n", time_taken);
@@ -78,12 +82,52 @@ void neural_net::train()
 
 void neural_net::create_arch()
 {
-	thrust::device_vector<float> d_vec(100000);
-	thrust::transform(
-		thrust::make_counting_iterator(0),
-		thrust::make_counting_iterator(100),
-		d_vec.begin(),
-		RandGen());
+	w1 = init_weight(opts.n_x, opts.n_h1);
+	b1 = init_weight(1, opts.n_h1);
+	w2 = init_weight(opts.n_h1, opts.n_h2);
+	b2 = init_weight(1, opts.n_h2);
+	w3 = init_weight(opts.n_h2, opts.n_o);
+	b3 = init_weight(1, opts.n_o);
+
+	v_w1 = init_velocity(opts.n_x, opts.n_h1);
+	v_b1 = init_velocity(1, opts.n_h1);
+	v_w2 = init_velocity(opts.n_h1, opts.n_h2);
+	v_b2 = init_velocity(1, opts.n_h2);
+	v_w3 = init_velocity(opts.n_h2, opts.n_o);
+	v_b3 = init_velocity(1, opts.n_o);
+
+	std::cout << v_w1[0][0] << std::endl;
+}
+
+
+std::vector<thrust::device_vector<float>> neural_net::init_weight(int insize, int outsize)
+{
+
+	std::vector<thrust::device_vector<float>> d_vec(insize, thrust::device_vector<float>(outsize));
+	thrust::device_vector<float> temp(outsize);
+
+	for (unsigned int i = 0; i < insize; i++)
+	{
+		thrust::transform(
+			thrust::counting_iterator<int>(0),
+			thrust::counting_iterator<int>(outsize),
+			temp.begin(),
+			RandGen(i, outsize));
+		d_vec[i] = temp;
+	}
+	temp.clear();
+	return d_vec;
+}
+
+
+std::vector<thrust::device_vector<float>> neural_net::init_velocity(int insize, int outsize)
+{
+	std::vector<thrust::device_vector<float>> d_vec(insize, thrust::device_vector<float>(outsize));
+
+	for (unsigned int i = 0; i < insize; i++)
+		d_vec[i] = thrust::device_vector<float>(outsize, 0);
+
+	return d_vec;
 }
 
 void neural_net::feed_forward()
