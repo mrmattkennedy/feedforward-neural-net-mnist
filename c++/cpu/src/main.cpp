@@ -6,7 +6,7 @@
 
 int main(int argc, char** argv)
 {
-	std::string base_path = "..\\MNIST data\\";
+	std::string base_path = "..\\..\\MNIST data\\";
 	neural_net nn(base_path);
 	nn.train();
 	Eigen::MatrixXf mat(2, 2);

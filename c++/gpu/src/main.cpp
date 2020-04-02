@@ -1,31 +1,39 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-
 #include <thrust/copy.h>
 #include <thrust/fill.h>
 #include <thrust/sequence.h>
+#include <thrust/reduce.h>
+#include <thrust/generate.h>
+#include <thrust/random.h>
+#include <thrust/transform.h>
+#include <thrust/iterator/counting_iterator.h>
 
+#include <algorithm>
 #include <iostream>
+#include <vector>
+#include <random>
+#include <functional>
+#include <algorithm>
+#include <chrono>
+#include <numeric>
+
 
 int main(void)
 {
-    // initialize all ten integers of a device_vector to 1
-    thrust::device_vector<int> D(10, 1);
+	std::vector<thrust::device_vector<float>> d_vec(700, thrust::device_vector<float>(500));
+	thrust::device_vector<float> temp(500);
+	for (unsigned int i = 0; i < 700; i++)
+	{
+		thrust::counting_iterator<unsigned int> index_sequence_begin(i);
+		thrust::transform(
+			thrust::counting_iterator<int>(0),
+			thrust::counting_iterator<int>(500),
+			temp.begin(),
+			RandGen(i, 500));
 
-    // set the first seven elements of a vector to 9
-    thrust::fill(D.begin(), D.begin() + 7, 9);
-
-    // initialize a host_vector with the first five elements of D
-    thrust::host_vector<int> H(D.begin(), D.begin() + 5);
-
-    // set the elements of H to 0, 1, 2, 3, ...
-    thrust::sequence(H.begin(), H.end());
-
-    // copy all of H back to the beginning of D
-    thrust::copy(H.begin(), H.end(), D.begin());
-
-    // print D
-    for(int i = 0; i < D.size(); i++)
-        std::cout << "D[" << i << "] = " << D[i] << std::endl;
-    return 0;
+		d_vec[i] = temp;
+	}
+	temp.clear();
+	return 0;
 }
