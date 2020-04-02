@@ -41,6 +41,25 @@ struct RandGen
 };
 
 
+struct dp
+{
+	float *A, *B;
+	int m,n,r;
+	dp(float *_A, float *_B, int _m, int _n, int _r): A(_A), B(_B), m(_m), n(_n), r(_r) {};
+
+	__host__ __device__
+	float operator()(size_t idx){
+		float sum = 0.0f;
+		int row = idx/r;
+		int col = idx - (row*r); // cheaper modulo
+
+		for (int i = 0; i < m; i++)
+			sum += A[col + row*i] * B[col + row*i];
+		return sum;
+	}
+};
+
+
 neural_net::neural_net(std::string path) : data(path) 
 {
 	//empty	
