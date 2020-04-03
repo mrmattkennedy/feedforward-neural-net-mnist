@@ -7,11 +7,14 @@
 #include <thrust/generate.h>
 #include <thrust/random.h>
 #include <thrust/transform.h>
+#include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <thrust/inner_product.h>
 #include <thrust/execution_policy.h>
 #include <thrust/equal.h>
 #include <cublas_v2.h>
+#include <cuda_runtime.h>
 
 #include <algorithm>
 #include <iostream>
@@ -21,11 +24,12 @@
 #include <algorithm>
 #include <chrono>
 #include <numeric>
+#include <cstdlib>
+#include <math.h>
 
 #include "neural_net.hpp"
 #include "data_reader.hpp"
 #include "options.hpp"
-
 
 struct RandGen
 {
@@ -43,24 +47,23 @@ struct RandGen
 };
 
 
-struct dp
+__global__ 
+void sigmoid_cuda(int n, float *x)
 {
-	float *A, *B;
-	int m,n,r;
-	dp(float *_A, float *_B, int _m, int _n, int _r): A(_A), B(_B), m(_m), n(_n), r(_r) {};
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		x[i] = 1 / (1 + __expf(-x[i]));
+}
 
-	__host__ __device__
-	float operator()(size_t idx){
-		float sum = 0.0f;
-		int row = idx/r;
-		int col = idx - (row*r); // cheaper modulo
-
-		for (int i = 0; i < m; i++)
-			sum += A[col + row*i] * B[col + row*i];
-		return sum;
-	}
-};
-
+__global__ 
+void cuda_get_exp(int n, float *x)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		x[i] = __expf(x[i]);
+}
 
 neural_net::neural_net(std::string path) : data(path) 
 {
@@ -75,13 +78,13 @@ neural_net::~neural_net()
 void neural_net::train()
 {
 	clock_t start, end;
-	start = clock();
 	create_arch();
 	int train_size = 60000;
 	
 	inputs = thrust::device_vector<float>(data.m_images.size());
 	thrust::copy(data.m_images.begin(), data.m_images.end(), inputs.begin());
 
+	start = clock();
 	//std::vector<int> shuffle_vector(train_size);
 	//std::iota(shuffle_vector.begin(), shuffle_vector.end(), 0);
 
@@ -140,18 +143,96 @@ thrust::device_vector<float> neural_net::init_weight(int insize, int outsize)
 
 void neural_net::feed_forward()
 {
-	//inputs is 70000x784 (NxM), w1 is 784x600 (MxR),
-	std::cout << w1.size() << ", " << b1.size() << ", " << inputs.size() << std::endl;
-	int n = 1000, m = 100, r = 100;
-	printf("here\n");
-	thrust::device_vector<float> t1(n*m,1);
-	thrust::device_vector<float> t2(m*r,1);
-	thrust::device_vector<float> result(n*r,0);
-	printf("here\n");
+	//Using thrust transform with struct doesn't work for large vectors. Need to use cublas GEMM (general matrix multiply) algorithms.
 //	thrust::transform(thrust::counting_iterator<int>(0), thrust::counting_iterator<int>(n*r), result.begin(), dp(thrust::raw_pointer_cast(inputs.data()), thrust::raw_pointer_cast(w1.data()), m, n, r));
-	thrust::transform(thrust::counting_iterator<int>(0), thrust::counting_iterator<int>(n*r), result.begin(), dp(thrust::raw_pointer_cast(t1.data()), thrust::raw_pointer_cast(t2.data()), m, n, r));
+	cublasHandle_t h;
+	cublasCreate(&h);
+	float alpha = 1.0f, beta=0.0f;
+	int blockSize = 256;
+	
+	//dot product of inputs and w1
+	int n = inputs.size() / 70000, m = 784, r = 600; //inputs is 70000x784 (NxM), w1 is 784x600 (MxR),
+	thrust::device_vector<float> a1(n*r, 0);
+	cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, n, r, m, &alpha, thrust::raw_pointer_cast(inputs.data()), n, thrust::raw_pointer_cast(w1.data()), m, &beta, thrust::raw_pointer_cast(a1.data()), n);
+	cudaDeviceSynchronize(); 
+	
+	//clip a1 values, assign to l1
+	thrust::device_vector<float> l1 = clip(a1);
+
+	//Cuda kernel for __expf, fast exponent
+	int numBlocks = (n*r + blockSize - 1) / blockSize;
+	sigmoid_cuda<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l1.data()));
 	cudaDeviceSynchronize();
-	printf("here\n");
+	
+	
+	//Hidden layer 2
+	m = 600, r = 500;
+	thrust::device_vector<float> a2(n*r, 0);
+
+	cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, n, r, m, &alpha, thrust::raw_pointer_cast(l1.data()), n, thrust::raw_pointer_cast(w2.data()), m, &beta, thrust::raw_pointer_cast(a2.data()), n);
+	cudaDeviceSynchronize(); 
+	
+	//clip a2 values, assign to l2
+	thrust::device_vector<float> l2 = clip(a2);
+
+	//Cuda kernel for __expf, fast exponent
+	numBlocks = (n*r + blockSize - 1) / blockSize;
+	sigmoid_cuda<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l2.data()));
+	cudaDeviceSynchronize();
+
+
+	//Output layer
+	m = 500, r = 10;
+	thrust::device_vector<float> a3(n*r, 0);
+	cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, n, r, m, &alpha, thrust::raw_pointer_cast(l2.data()), n, thrust::raw_pointer_cast(w3.data()), m, &beta, thrust::raw_pointer_cast(a3.data()), n);
+	cudaDeviceSynchronize(); 
+	
+	//Get exponent
+	thrust::device_vector<float> l3 = clip(a3, 50);
+	cuda_get_exp<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l3.data()));
+
+	//Get sequences
+	int sequence_length = 10;
+	int sequences = l3.size() / sequence_length;
+	thrust::device_vector<float> exp_sums(sequences);
+	thrust::reduce_by_key(thrust::device, 
+			thrust::make_transform_iterator(thrust::counting_iterator<int>(0), thrust::placeholders::_1 / sequence_length), 
+			thrust::make_transform_iterator(thrust::counting_iterator<int>(sequences * sequence_length), thrust::placeholders::_1 / sequence_length), 
+			l3.begin(), 
+			thrust::discard_iterator<int>(), 
+			exp_sums.begin());
+	printf("l3\n");
+	thrust::copy_n(l3.begin(), 10, std::ostream_iterator<float>(std::cout, ","));
+	std::cout << std::endl;
+	printf("sums\n");
+	thrust::copy_n(exp_sums.begin(), 10, std::ostream_iterator<float>(std::cout, ","));
+	std::cout << std::endl;
+	printf("l3: %d, sums: %d\n", l3.size(), exp_sums.size());
+	cublasDestroy(h);
+}
+
+
+thrust::device_vector<float> neural_net::clip(thrust::device_vector<float> in, int max_power_val)
+{
+	thrust::device_vector<float>::iterator iter = thrust::max_element(in.begin(), in.end());
+	float max_val = std::abs(*iter);
+	iter = thrust::min_element(in.begin(), in.end());
+	float min_val = std::abs(*iter);
+	
+	//Get largest after absolute value
+	float largest_val = std::max(min_val, max_val);
+
+	//Divide max_val by this factor, as e^88 overflows for 32 bit floats
+	float factor = max_power_val / largest_val;
+	
+	//Multiply each element by factor
+	thrust::device_vector<float> ret(in.size(), 0);
+	thrust::transform(in.begin(), in.end(),
+		thrust::make_constant_iterator(factor),
+		ret.begin(),
+		thrust::multiplies<float>());
+
+	return ret;
 }
 
 void neural_net::back_propagation()
