@@ -32,7 +32,7 @@ class neural_net
 		thrust::device_vector<float> l3;
 		thrust::device_vector<float> labels;
 
-		int model_error;
+		double model_error;
 
 		
 	public:
@@ -45,7 +45,8 @@ class neural_net
 		void feed_forward();
 		thrust::device_vector<float> clip(thrust::device_vector<float>, int max_power_val=88);
 		void back_propagation();
-		int get_error();
+		double get_error();
+		thrust::device_vector<float> get_error_gradient();
 		double get_accuracy();
 };
 #endif

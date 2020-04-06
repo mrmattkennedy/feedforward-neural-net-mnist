@@ -84,6 +84,20 @@ void cuda_get_error(int n, float *outputs, float *labels, float *sums, int n_o)
 		sums[i] = -__logf(outputs[(i*n_o) + (int)labels[i]] + 1e-10);
 }
 
+__global__ 
+void cuda_get_error_gradient(int n, float *outputs, float *labels, float *gradient, int n_o)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		if (i == ((i / n_o) + labels[i / n_o]))
+			gradient[i] = outputs[i] - 1;
+		else
+			gradient[i] = outputs[i];
+}
+
+
+
 neural_net::neural_net(std::string path) : data(path) 
 {
 	//empty	
@@ -257,10 +271,12 @@ thrust::device_vector<float> neural_net::clip(thrust::device_vector<float> in, i
 
 void neural_net::back_propagation()
 {
-	get_error();
+	model_error = get_error();
+	thrust::device_vector<float> error_gradient = get_error_gradient();
+
 }
 
-int neural_net::get_error()
+double neural_net::get_error()
 {
 	int n = labels.size();
 	int blockSize = 256;
@@ -274,29 +290,25 @@ int neural_net::get_error()
 			opts.n_o);
 	
 	cudaDeviceSynchronize(); 
-	//thrust::copy_n(error_sums.begin(), 100, std::ostream_iterator<float>(std::cout, ","));
-	/*
-	double sum = 0;
-	for (int i = 0; i < error_sums.size(); i++)
-	{
-		//std::cout << i << ": " << error_sums[i] << std::endl;
-		sum += error_sums[i];
-	}
-	printf("Sum is %f\n", sum);
-	*/
-	auto e_sum = thrust::reduce(error_sums.begin(), error_sums.end());
-	std::cout <<"Sum is " <<  e_sum << std::endl;
-	//cudaDeviceSynchronize(); 
-	//printf("%f\n", sum);
-	/*
-	for (int i = 0; i < l3.size(); i+=opts.n_o)
-	{
-		thrust::device_vector<float>::iterator iter = thrust::max_element(l3.begin() + i, l3.begin() + i + opts.n_o);
-		unsigned int position = iter - l3.begin() + i;
+	return thrust::reduce(error_sums.begin(), error_sums.end(), 0.0, thrust::plus<double>());
+}
 
-	}
-	*/
-	return 0;
+
+thrust::device_vector<float> neural_net::get_error_gradient()
+{
+	int n = l3.size();
+	int blockSize = 256;
+	int numBlocks = (n + blockSize - 1) / blockSize;
+	
+	thrust::device_vector<float> error_gradient(l3.size(), 0);
+	cuda_get_error_gradient<<<numBlocks, blockSize>>>(n,
+			thrust::raw_pointer_cast(l3.data()), 
+			thrust::raw_pointer_cast(labels.data()), 
+			thrust::raw_pointer_cast(error_gradient.data()), 
+			opts.n_o);
+	
+	cudaDeviceSynchronize(); 
+	return error_gradient;
 }
 
 
