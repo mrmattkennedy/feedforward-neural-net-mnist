@@ -1,5 +1,4 @@
 #include "neural_net.hpp"
-
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/copy.h>
@@ -31,14 +30,12 @@
 
 
 
-
 int main(int argc, char** argv)
 {
 	std::string base_path = "..\\..\\MNIST data\\";
 	neural_net nn(base_path);
-	//nn.train();
-
-
+	nn.train();
+/*
 	int n = 3, m = 2, r = 3;
 	thrust::device_vector<float> v1(n*m, 1);
 	thrust::device_vector<float> v2(m*r, 1);
@@ -54,8 +51,8 @@ int main(int argc, char** argv)
 	v2[3] = 2;
 	v2[4] = 3;
 	v2[5] = 3;
-	thrust::device_vector<float> result(n*r, 0);
-	thrust::device_vector<float> transpose(n*m, 0);
+	thrust::device_vector<float> result(m*m, 0);
+	thrust::device_vector<float> transpose(m*r, 0);
 	cublasHandle_t h;
 	cublasCreate(&h);
 	float alpha = 1.0f, beta=0.0f;
@@ -75,8 +72,11 @@ int main(int argc, char** argv)
 		std::cout << transpose[i] << " ";
 	std::cout << std::endl;
 
+	cublasSgeam(h, CUBLAS_OP_T, CUBLAS_OP_N, n, m, &alpha, thrust::raw_pointer_cast(v1.data()), m, &beta, thrust::raw_pointer_cast(v1.data()), n, thrust::raw_pointer_cast(transpose.data()), n);
+	cudaDeviceSynchronize(); 
 	//cublasSgemm(h, CUBLAS_OP_T, CUBLAS_OP_T, r, n, m, &alpha, thrust::raw_pointer_cast(v1.data()), m, thrust::raw_pointer_cast(transpose.data()), n, &beta, thrust::raw_pointer_cast(result.data()), n);
 	//cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, r, n, m, &alpha, thrust::raw_pointer_cast(v1.data()), n, thrust::raw_pointer_cast(v2.data()), m, &beta, thrust::raw_pointer_cast(result.data()), r);
+	cublasSgemm(h, CUBLAS_OP_T, CUBLAS_OP_T, m, m, r, &alpha, thrust::raw_pointer_cast(transpose.data()), n, thrust::raw_pointer_cast(v1.data()), m, &beta, thrust::raw_pointer_cast(result.data()), m);
 	
 	cudaDeviceSynchronize(); 
 	cublasDestroy(h);
@@ -85,5 +85,6 @@ int main(int argc, char** argv)
 	{
 		std::cout << result[i] << " ";
 	}
+*/	
 	return 0;
 }

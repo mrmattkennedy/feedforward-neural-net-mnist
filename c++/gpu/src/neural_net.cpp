@@ -274,6 +274,23 @@ void neural_net::back_propagation()
 	model_error = get_error();
 	thrust::device_vector<float> error_gradient = get_error_gradient();
 
+	float alpha = 1.0f, beta=0.0f;
+	int blockSize = 256;	
+	int n = inputs.size() / opts.n_x, m = opts.n_h2, r = opts.n_o;
+
+	thrust::device_vector<float> l2_transpose(l2.size());
+	thrust::device_vector<float> out_delta(m*r, 0);
+
+	cublasHandle_t h;
+	cublasCreate(&h);
+
+	cublasSgeam(h, CUBLAS_OP_T, CUBLAS_OP_N, n, m, &alpha, thrust::raw_pointer_cast(l2.data()), m, &beta, thrust::raw_pointer_cast(l2.data()), n, thrust::raw_pointer_cast(l2_transpose.data()), n);
+	cudaDeviceSynchronize(); 
+	cublasSgemm(h, CUBLAS_OP_T, CUBLAS_OP_T, m, m, r, &alpha, thrust::raw_pointer_cast(l2_transpose.data()), n, thrust::raw_pointer_cast(error_gradient.data()), m, &beta, thrust::raw_pointer_cast(out_delta.data()), m);
+	cudaDeviceSynchronize(); 
+
+	thrust::copy_n(out_delta.begin(), 10, std::ostream_iterator<float>(std::cout, ","));
+	cublasDestroy(h);
 }
 
 double neural_net::get_error()

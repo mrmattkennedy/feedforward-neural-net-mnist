@@ -208,6 +208,7 @@ def back_propagation(weights, outputs, train_input, train_target):
     #Calculate the error derivative for softmax
     error_gradient = error_derivative(train_target, outputs['A3'])
 
+    pdb.set_trace()
     #Output delta (gradient) is error derivative * hidden layer outs (average for batch)
     out_delta = np.dot(outputs['A2'].T, error_gradient) / error_gradient.shape[0]
 
@@ -272,11 +273,9 @@ def calculate_error(target, output):
 
 
 def error_derivative(target, output):
-    
     rows, cols = output.shape
     reshaped_target = np.zeros((rows, opts.n_o))
     reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
-    pdb.set_trace()
     return output - reshaped_target
 
 
