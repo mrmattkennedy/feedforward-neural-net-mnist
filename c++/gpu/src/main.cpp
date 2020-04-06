@@ -7,6 +7,7 @@ int main(int argc, char** argv)
 	neural_net nn(base_path);
 	nn.train();
 
+
 	/*
 	int n = 2, m = 2, r = 2;
 	thrust::device_vector<float> v1(n*m, 1);

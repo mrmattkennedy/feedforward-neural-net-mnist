@@ -65,6 +65,25 @@ void cuda_get_exp(int n, float *x)
 		x[i] = __expf(x[i]);
 }
 
+
+__global__ 
+void softmax_cuda(int n, float *e, float *e_sums, int n_o)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		e[i] = e[i] / e_sums[i / n_o];
+}
+
+__global__ 
+void cuda_get_error(int n, float *outputs, float *labels, float *sums, int n_o)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		sums[i] = -__logf(outputs[(i*n_o) + (int)labels[i]] + 1e-10);
+}
+
 neural_net::neural_net(std::string path) : data(path) 
 {
 	//empty	
@@ -83,6 +102,8 @@ void neural_net::train()
 	
 	inputs = thrust::device_vector<float>(data.m_images.size());
 	thrust::copy(data.m_images.begin(), data.m_images.end(), inputs.begin());
+	labels = thrust::device_vector<float>(data.m_labels.size());
+	thrust::copy(data.m_labels.begin(), data.m_labels.end(), labels.begin());
 
 	start = clock();
 	//std::vector<int> shuffle_vector(train_size);
@@ -102,6 +123,7 @@ void neural_net::train()
 	}
 	*/
 	feed_forward();
+	back_propagation();
 	end = clock();
 	double time_taken = double(end - start) / double(CLOCKS_PER_SEC);
 	printf("%f\n", time_taken);
@@ -151,13 +173,13 @@ void neural_net::feed_forward()
 	int blockSize = 256;
 	
 	//dot product of inputs and w1
-	int n = inputs.size() / 70000, m = 784, r = 600; //inputs is 70000x784 (NxM), w1 is 784x600 (MxR),
+	int n = inputs.size() / opts.n_x, m = opts.n_x, r = opts.n_h1; //inputs is 70000x784 (NxM), w1 is 784x600 (MxR),
 	thrust::device_vector<float> a1(n*r, 0);
 	cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, n, r, m, &alpha, thrust::raw_pointer_cast(inputs.data()), n, thrust::raw_pointer_cast(w1.data()), m, &beta, thrust::raw_pointer_cast(a1.data()), n);
 	cudaDeviceSynchronize(); 
 	
 	//clip a1 values, assign to l1
-	thrust::device_vector<float> l1 = clip(a1);
+	l1 = clip(a1);
 
 	//Cuda kernel for __expf, fast exponent
 	int numBlocks = (n*r + blockSize - 1) / blockSize;
@@ -166,14 +188,14 @@ void neural_net::feed_forward()
 	
 	
 	//Hidden layer 2
-	m = 600, r = 500;
+	m = opts.n_h1, r = opts.n_h2;
 	thrust::device_vector<float> a2(n*r, 0);
 
 	cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, n, r, m, &alpha, thrust::raw_pointer_cast(l1.data()), n, thrust::raw_pointer_cast(w2.data()), m, &beta, thrust::raw_pointer_cast(a2.data()), n);
 	cudaDeviceSynchronize(); 
 	
 	//clip a2 values, assign to l2
-	thrust::device_vector<float> l2 = clip(a2);
+	l2 = clip(a2);
 
 	//Cuda kernel for __expf, fast exponent
 	numBlocks = (n*r + blockSize - 1) / blockSize;
@@ -182,17 +204,16 @@ void neural_net::feed_forward()
 
 
 	//Output layer
-	m = 500, r = 10;
+	m = opts.n_h2, r = opts.n_o;
 	thrust::device_vector<float> a3(n*r, 0);
 	cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, n, r, m, &alpha, thrust::raw_pointer_cast(l2.data()), n, thrust::raw_pointer_cast(w3.data()), m, &beta, thrust::raw_pointer_cast(a3.data()), n);
 	cudaDeviceSynchronize(); 
 	
 	//Get exponent
-	thrust::device_vector<float> l3 = clip(a3, 50);
-	cuda_get_exp<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l3.data()));
+	l3 = clip(a3, 50);
 
 	//Get sequences
-	int sequence_length = 10;
+	int sequence_length = opts.n_o;
 	int sequences = l3.size() / sequence_length;
 	thrust::device_vector<float> exp_sums(sequences);
 	thrust::reduce_by_key(thrust::device, 
@@ -201,13 +222,12 @@ void neural_net::feed_forward()
 			l3.begin(), 
 			thrust::discard_iterator<int>(), 
 			exp_sums.begin());
-	printf("l3\n");
-	thrust::copy_n(l3.begin(), 10, std::ostream_iterator<float>(std::cout, ","));
-	std::cout << std::endl;
-	printf("sums\n");
-	thrust::copy_n(exp_sums.begin(), 10, std::ostream_iterator<float>(std::cout, ","));
-	std::cout << std::endl;
-	printf("l3: %d, sums: %d\n", l3.size(), exp_sums.size());
+
+	//Do softmax
+	numBlocks = (n*r + blockSize - 1) / blockSize;
+	softmax_cuda<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l3.data()), thrust::raw_pointer_cast(exp_sums.data()), opts.n_o);
+
+	cudaDeviceSynchronize(); 
 	cublasDestroy(h);
 }
 
@@ -237,11 +257,45 @@ thrust::device_vector<float> neural_net::clip(thrust::device_vector<float> in, i
 
 void neural_net::back_propagation()
 {
-
+	get_error();
 }
 
 int neural_net::get_error()
 {
+	int n = labels.size();
+	int blockSize = 256;
+	int numBlocks = (n + blockSize - 1) / blockSize;
+	
+	thrust::device_vector<float> error_sums(labels.size(), 0);
+	cuda_get_error<<<numBlocks, blockSize>>>(n,
+			thrust::raw_pointer_cast(l3.data()), 
+			thrust::raw_pointer_cast(labels.data()), 
+			thrust::raw_pointer_cast(error_sums.data()), 
+			opts.n_o);
+	
+	cudaDeviceSynchronize(); 
+	//thrust::copy_n(error_sums.begin(), 100, std::ostream_iterator<float>(std::cout, ","));
+	/*
+	double sum = 0;
+	for (int i = 0; i < error_sums.size(); i++)
+	{
+		//std::cout << i << ": " << error_sums[i] << std::endl;
+		sum += error_sums[i];
+	}
+	printf("Sum is %f\n", sum);
+	*/
+	auto e_sum = thrust::reduce(error_sums.begin(), error_sums.end());
+	std::cout <<"Sum is " <<  e_sum << std::endl;
+	//cudaDeviceSynchronize(); 
+	//printf("%f\n", sum);
+	/*
+	for (int i = 0; i < l3.size(); i+=opts.n_o)
+	{
+		thrust::device_vector<float>::iterator iter = thrust::max_element(l3.begin() + i, l3.begin() + i + opts.n_o);
+		unsigned int position = iter - l3.begin() + i;
+
+	}
+	*/
 	return 0;
 }
 

@@ -264,6 +264,7 @@ def calculate_error(target, output):
     reshaped_target[np.arange(reshaped_target.shape[0]), target]=1
 
     #Add up the error
+    pdb.set_trace()
     ce = -np.sum(reshaped_target * np.log(output + 1e-8))
 
     #Round and return

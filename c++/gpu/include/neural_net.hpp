@@ -27,6 +27,10 @@ class neural_net
 		thrust::device_vector<float> v_b3;
 
 		thrust::device_vector<float> inputs;
+		thrust::device_vector<float> l1;
+		thrust::device_vector<float> l2;
+		thrust::device_vector<float> l3;
+		thrust::device_vector<float> labels;
 
 		int model_error;
 

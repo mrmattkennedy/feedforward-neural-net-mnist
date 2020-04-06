@@ -67,6 +67,7 @@ void data_reader::load_images(std::string data_path)
 		std::copy(q, q+(n_rows*n_cols), std::back_inserter(image));
 		//Reading directly in to a double will use more than 1 byte, giving wrong inputs
 		std::vector<float> double_image(image.begin(), image.end());
+		//Use a 1D array for thrust device vector
 		m_images.insert(m_images.end(), double_image.begin(), double_image.end());
 //		m_images.push_back(double_image);
 	}
