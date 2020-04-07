@@ -288,15 +288,17 @@ void neural_net::back_propagation()
 	//Create transpose, then multiply l2.transpose by the error gradient.
 	cublasSgeam(h, CUBLAS_OP_T, CUBLAS_OP_N, n, m, &alpha, thrust::raw_pointer_cast(l2.data()), m, &beta, thrust::raw_pointer_cast(l2.data()), n, thrust::raw_pointer_cast(l2_transpose.data()), n);
 	cudaDeviceSynchronize(); 
+
 	thrust::fill(l2_transpose.begin(), l2_transpose.end(), 1);
 	thrust::fill(error_gradient.begin(), error_gradient.end(), 1);
-	cublasSgemm(h, CUBLAS_OP_T, CUBLAS_OP_T, m, m, r, &alpha, thrust::raw_pointer_cast(l2_transpose.data()), n, thrust::raw_pointer_cast(error_gradient.data()), m, &beta, thrust::raw_pointer_cast(out_delta.data()), m);
+	cublasSgemm(h, CUBLAS_OP_T, CUBLAS_OP_T, m, r, n, &alpha, thrust::raw_pointer_cast(l2_transpose.data()), n, thrust::raw_pointer_cast(error_gradient.data()), r, &beta, thrust::raw_pointer_cast(out_delta.data()), m);
 	cudaDeviceSynchronize(); 
 
 	thrust::copy_n(out_delta.begin(), 10, std::ostream_iterator<float>(std::cout, ","));
 	printf("%d\n", out_delta.size());
 	cublasDestroy(h);
 }
+
 
 double neural_net::get_error()
 {
