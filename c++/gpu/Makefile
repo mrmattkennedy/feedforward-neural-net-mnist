@@ -4,7 +4,7 @@ TARGET = gpu
 all: $(TARGET)
 
 $(TARGET): src/*.cpp
-	$(CC) $(CFLAGS) -o $(TARGET) src/*.cpp
+	$(CC) $(CFLAGS) -o $(TARGET) src/main.cpp
 	mv $(TARGET).exp build/$(TARGET).exp
 	mv $(TARGET).lib build/$(TARGET).lib
 
