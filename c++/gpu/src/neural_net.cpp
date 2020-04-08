@@ -41,7 +41,7 @@ struct RandGen
 	{
 		thrust::default_random_engine randEng;
 		randEng.discard(N * thread_id);
-		thrust::uniform_real_distribution<float> uniDist(0.01, 1.0);
+		thrust::uniform_real_distribution<float> uniDist(-0.02, 0.02);
 		return uniDist(randEng);
 	}
 };
@@ -54,6 +54,15 @@ void sigmoid_cuda(int n, float *x)
 	int stride = blockDim.x * gridDim.x;
 	for (int i = index; i < n; i += stride)
 		x[i] = 1 / (1 + __expf(-x[i]));
+}
+
+__global__ 
+void sigmoid_prime_cuda(int n, float *outputs, float *gradient)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		gradient[i] = outputs[i] * (1 - outputs[i]);
 }
 
 __global__ 
@@ -76,12 +85,14 @@ void softmax_cuda(int n, float *e, float *e_sums, int n_o)
 }
 
 __global__ 
-void cuda_get_error(int n, float *outputs, float *labels, float *sums, int n_o)
+void cuda_get_error(int n, float *outputs, float *labels, double *sums, int n_o)
 {
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x;
 	for (int i = index; i < n; i += stride)
+	{
 		sums[i] = -__logf(outputs[(i*n_o) + (int)labels[i]] + 1e-10);
+	}
 }
 
 __global__ 
@@ -96,6 +107,43 @@ void cuda_get_error_gradient(int n, float *outputs, float *labels, float *gradie
 			gradient[i] = outputs[i];
 }
 
+
+__global__ 
+void cuda_get_bias_delta(int n, float *gradient, float *layer_bias, int num_nodes)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		layer_bias[i % num_nodes] += gradient[i] / n;
+}
+
+
+__global__ 
+void cuda_get_layer_error(int n, float *out_error, float *outputs, float *out_gradient, float *layer_error)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		layer_error[i] = out_error[i] * outputs[i] * out_gradient[i];
+}
+
+__global__ 
+void cuda_update_velocity(int n, float *v, float *delta, float beta)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		v[i] = (beta * v[i]) + ((1 - beta) * delta[i]);
+}
+
+__global__ 
+void cuda_update_weight(int n, float *w, float *v, float alpha)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		w[i] -= alpha * v[i];
+}
 
 
 neural_net::neural_net(std::string path) : data(path) 
@@ -118,27 +166,64 @@ void neural_net::train()
 	thrust::copy(data.m_images.begin(), data.m_images.end(), inputs.begin());
 	labels = thrust::device_vector<float>(data.m_labels.size());
 	thrust::copy(data.m_labels.begin(), data.m_labels.end(), labels.begin());
-
-	start = clock();
-	//std::vector<int> shuffle_vector(train_size);
-	//std::iota(shuffle_vector.begin(), shuffle_vector.end(), 0);
-
 	
-	/*
-	for (int i = 0; i < opts.epochs; i++)
-	{	
-		std::random_shuffle(shuffle_vector.begin(), shuffle_vector.end());
-		opts.alpha *= (1 / (1 + opts.decay * i));
+	cublasCreate(&h);
+	start = clock();
+	
+	int blockSize = 256;
+	int numBlocks = (opts.n_o * opts.n_h2 + blockSize - 1) / blockSize;
 
-		for (int j = 0; j < opts.batches; j++)
-		{
-		}
+	for (int i = 0; i < 100; i++)
+	{
+		feed_forward();
+		back_propagation();
+		
+		//Update velocities
+		cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_o * opts.n_h2, 
+				thrust::raw_pointer_cast(v_w3.data()),
+				thrust::raw_pointer_cast(l3_delta.data()),
+				opts.beta);
+		cudaDeviceSynchronize(); 
 
+		numBlocks = (opts.n_h2 * opts.n_h1 + blockSize - 1) / blockSize;
+		cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_h2 * opts.n_h1, 
+				thrust::raw_pointer_cast(v_w2.data()),
+				thrust::raw_pointer_cast(l2_delta.data()),
+				opts.beta);
+		cudaDeviceSynchronize(); 
+
+		numBlocks = (opts.n_h1 * opts.n_x + blockSize - 1) / blockSize;
+		cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_h1 * opts.n_x,
+				thrust::raw_pointer_cast(v_w1.data()),
+				thrust::raw_pointer_cast(l1_delta.data()),
+				opts.beta);
+		cudaDeviceSynchronize(); 
+
+		//Update weights
+		numBlocks = (opts.n_o * opts.n_h2 + blockSize - 1) / blockSize;
+		cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_o * opts.n_h2, 
+				thrust::raw_pointer_cast(w3.data()),
+				thrust::raw_pointer_cast(v_w3.data()),
+				opts.alpha);
+		cudaDeviceSynchronize(); 
+
+		numBlocks = (opts.n_h2 * opts.n_h1 + blockSize - 1) / blockSize;
+		cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_h2 * opts.n_h1, 
+				thrust::raw_pointer_cast(w2.data()),
+				thrust::raw_pointer_cast(v_w2.data()),
+				opts.alpha);
+		cudaDeviceSynchronize(); 
+
+		numBlocks = (opts.n_h1 * opts.n_x + blockSize - 1) / blockSize;
+		cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_h1 * opts.n_x, 
+				thrust::raw_pointer_cast(w1.data()),
+				thrust::raw_pointer_cast(v_w1.data()),
+				opts.alpha);
+		cudaDeviceSynchronize(); 
+		printf("%d:\tError:%f\tAccuracy:\n", i, model_error);
 	}
-	*/
-	feed_forward();
-	back_propagation();
 	end = clock();
+	cublasDestroy(h);
 	double time_taken = double(end - start) / double(CLOCKS_PER_SEC);
 	printf("%f\n", time_taken);
 		
@@ -179,19 +264,15 @@ thrust::device_vector<float> neural_net::init_weight(int insize, int outsize)
 
 void neural_net::feed_forward()
 {
+
 	//Using thrust transform with struct doesn't work for large vectors. Need to use cublas GEMM (general matrix multiply) algorithms.
 //	thrust::transform(thrust::counting_iterator<int>(0), thrust::counting_iterator<int>(n*r), result.begin(), dp(thrust::raw_pointer_cast(inputs.data()), thrust::raw_pointer_cast(w1.data()), m, n, r));
-	cublasHandle_t h;
-	cublasCreate(&h);
-	float alpha = 1.0f, beta=0.0f;
 	int blockSize = 256;
 	
-	//dot product of inputs and w1
+	//Dot product of inputs and w1
 	int n = inputs.size() / opts.n_x, m = opts.n_x, r = opts.n_h1; //inputs is 70000x784 (NxM), w1 is 784x600 (MxR),
-	thrust::device_vector<float> a1(n*r, 0);
-	cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, n, r, m, &alpha, thrust::raw_pointer_cast(inputs.data()), n, thrust::raw_pointer_cast(w1.data()), m, &beta, thrust::raw_pointer_cast(a1.data()), n);
+	auto a1 = matrix_multiply(inputs, w1, n, m, m, r, NORMAL);
 	cudaDeviceSynchronize(); 
-	
 	//clip a1 values, assign to l1
 	l1 = clip(a1);
 
@@ -203,9 +284,7 @@ void neural_net::feed_forward()
 	
 	//Hidden layer 2
 	m = opts.n_h1, r = opts.n_h2;
-	thrust::device_vector<float> a2(n*r, 0);
-
-	cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, n, r, m, &alpha, thrust::raw_pointer_cast(l1.data()), n, thrust::raw_pointer_cast(w2.data()), m, &beta, thrust::raw_pointer_cast(a2.data()), n);
+	auto a2 = matrix_multiply(l1, w2, n, m, m, r, NORMAL);
 	cudaDeviceSynchronize(); 
 	
 	//clip a2 values, assign to l2
@@ -219,12 +298,13 @@ void neural_net::feed_forward()
 
 	//Output layer
 	m = opts.n_h2, r = opts.n_o;
-	thrust::device_vector<float> a3(n*r, 0);
-	cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, n, r, m, &alpha, thrust::raw_pointer_cast(l2.data()), n, thrust::raw_pointer_cast(w3.data()), m, &beta, thrust::raw_pointer_cast(a3.data()), n);
+	auto a3 = matrix_multiply(l2, w3, n, m, m, r, NORMAL);
 	cudaDeviceSynchronize(); 
 	
 	//Get exponent
-	l3 = clip(a3, 50);
+	l3 = a3;
+	numBlocks = (n*r + blockSize - 1) / blockSize;
+	cuda_get_exp<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l3.data()));
 
 	//Get sequences
 	int sequence_length = opts.n_o;
@@ -238,11 +318,8 @@ void neural_net::feed_forward()
 			exp_sums.begin());
 
 	//Do softmax
-	numBlocks = (n*r + blockSize - 1) / blockSize;
 	softmax_cuda<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l3.data()), thrust::raw_pointer_cast(exp_sums.data()), opts.n_o);
-
 	cudaDeviceSynchronize(); 
-	cublasDestroy(h);
 }
 
 
@@ -270,33 +347,126 @@ thrust::device_vector<float> neural_net::clip(thrust::device_vector<float> in, i
 }
 
 void neural_net::back_propagation()
-{
+{	
 	model_error = get_error();
 	thrust::device_vector<float> error_gradient = get_error_gradient();
 
-	float alpha = 1.0f, beta=0.0f;
-	int blockSize = 256;	
 	int n = inputs.size() / opts.n_x, m = opts.n_h2, r = opts.n_o;
-
-	//Create cublas session
-	cublasHandle_t h;
-	cublasCreate(&h);
+	int blockSize = 256;	
+	int numBlocks = (n + blockSize - 1) / blockSize;
 	
-	//Vectors for l2 transpose and out delta
-	thrust::device_vector<float> l2_transpose(l2.size());
-	thrust::device_vector<float> out_delta(m*r, 0);
-	//Create transpose, then multiply l2.transpose by the error gradient.
-	cublasSgeam(h, CUBLAS_OP_T, CUBLAS_OP_N, n, m, &alpha, thrust::raw_pointer_cast(l2.data()), m, &beta, thrust::raw_pointer_cast(l2.data()), n, thrust::raw_pointer_cast(l2_transpose.data()), n);
-	cudaDeviceSynchronize(); 
+	//Output layer
+	//Get out delta
+	l3_delta = matrix_multiply(l2, error_gradient, n, m, n, r, TRANSPOSE_A);
+	thrust::for_each(l3_delta.begin(), l3_delta.end(), thrust::placeholders::_1 /= n);
 
-	thrust::fill(l2_transpose.begin(), l2_transpose.end(), 1);
-	thrust::fill(error_gradient.begin(), error_gradient.end(), 1);
-	cublasSgemm(h, CUBLAS_OP_T, CUBLAS_OP_T, m, r, n, &alpha, thrust::raw_pointer_cast(l2_transpose.data()), n, thrust::raw_pointer_cast(error_gradient.data()), r, &beta, thrust::raw_pointer_cast(out_delta.data()), m);
-	cudaDeviceSynchronize(); 
+	//Get bias delta
+	l3_bias_delta = thrust::device_vector<float>(r, 0);
+	cuda_get_bias_delta<<<numBlocks, blockSize>>>(n,
+			thrust::raw_pointer_cast(error_gradient.data()), 
+			thrust::raw_pointer_cast(l3_bias_delta.data()), 
+			r);
+	
+	//Hidden layer 2	
+	//Get hidden layer 2 output error
+	m = opts.n_o, r = opts.n_h2;
+	auto l2_out_error = matrix_multiply(error_gradient, w3, n, m, r, m, TRANSPOSE_B);
 
-	thrust::copy_n(out_delta.begin(), 10, std::ostream_iterator<float>(std::cout, ","));
-	printf("%d\n", out_delta.size());
-	cublasDestroy(h);
+	//Get sigmoid derivative for hidden layer 2
+	thrust::device_vector<float> l2_sigmoid_prime(n*r, 0);
+	sigmoid_prime_cuda<<<numBlocks, blockSize>>>(n,
+			thrust::raw_pointer_cast(l2.data()), 
+			thrust::raw_pointer_cast(l2_sigmoid_prime.data()));
+	
+	//Get hidden layer 2 error
+	thrust::device_vector<float> l2_error(n*r, 0);
+	cuda_get_layer_error<<<numBlocks, blockSize>>>(n,
+			thrust::raw_pointer_cast(l2_out_error.data()), 
+			thrust::raw_pointer_cast(l2.data()), 
+			thrust::raw_pointer_cast(l2_sigmoid_prime.data()),
+			thrust::raw_pointer_cast(l2_error.data()));
+	
+	//Get hidden layer 2 deltas
+	m = opts.n_h1, r = opts.n_h2;
+	l2_delta = matrix_multiply(l1, l2_error, n, m, n, r, TRANSPOSE_A);
+	
+	//Get bias delta
+	l2_bias_delta = thrust::device_vector<float>(r, 0);
+	cuda_get_bias_delta<<<numBlocks, blockSize>>>(n,
+			thrust::raw_pointer_cast(l2_error.data()), 
+			thrust::raw_pointer_cast(l2_bias_delta.data()), 
+			r);
+	
+
+	//Hidden layer 1
+	//Get hidden layer 1 output error
+	auto l1_out_error = matrix_multiply(l2_error, w2, n, r, m, r, TRANSPOSE_B);
+	
+
+	//Get sigmoid derivative for hidden layer 1
+	thrust::device_vector<float> l1_sigmoid_prime(n*m, 0);
+	sigmoid_prime_cuda<<<numBlocks, blockSize>>>(n,
+			thrust::raw_pointer_cast(l1.data()), 
+			thrust::raw_pointer_cast(l1_sigmoid_prime.data()));
+	
+	//Get hidden layer 1 error
+	thrust::device_vector<float> l1_error(n*m, 0);
+	cuda_get_layer_error<<<numBlocks, blockSize>>>(n,
+			thrust::raw_pointer_cast(l1_out_error.data()), 
+			thrust::raw_pointer_cast(l1.data()), 
+			thrust::raw_pointer_cast(l1_sigmoid_prime.data()),
+			thrust::raw_pointer_cast(l1_error.data()));
+	
+
+	//Get hidden layer 1 deltas
+	m = opts.n_x, r = opts.n_h1;
+	l1_delta = matrix_multiply(inputs, l1_error, n, m, n, r, TRANSPOSE_A);
+	
+	//Get bias delta
+	l1_bias_delta = thrust::device_vector<float>(r, 0);
+	cuda_get_bias_delta<<<numBlocks, blockSize>>>(n,
+			thrust::raw_pointer_cast(l1_error.data()), 
+			thrust::raw_pointer_cast(l1_bias_delta.data()), 
+			r);
+	
+	//printf("Size is %d, %d\n", l1_delta.size(), l1_bias_delta.size());
+	/*
+	for (int i = 0; i < 10; i++)
+		std::cout << l3_delta[i] << " ";
+	std::cout << std::endl;
+	for (int i = 0; i < 10; i++)
+		std::cout << l3_bias_delta[i] << " ";
+	std::cout << std::endl;
+	for (int i = 0; i < 10; i++)
+		std::cout << l2_delta[i] << " ";
+	std::cout << std::endl;
+	for (int i = 0; i < 10; i++)
+		std::cout << l2_bias_delta[i] << " ";
+	std::cout << std::endl;
+	for (int i = 0; i < 10; i++)
+		std::cout << l1_delta[i] << " ";
+	std::cout << std::endl;
+	for (int i = 0; i < 10; i++)
+		std::cout << l1_bias_delta[i] << " ";
+	std::cout << std::endl;
+	*/
+	/*
+	printf("Sizes are %d, %d, %d, %d\n", l1_out_error.size(), l1_sigmoid_prime.size(), l1.size(), l1_error.size());
+	for (int i = 0; i < 10; i++)
+		std::cout << l1_out_error[i] << " ";
+	std::cout << std::endl;
+	for (int i = 0; i < 10; i++)
+		std::cout << l1[i] << " ";
+	std::cout << std::endl;
+	for (int i = 0; i < 10; i++)
+		std::cout << l1_sigmoid_prime[i] << " ";
+	std::cout << std::endl;
+	for (int i = 0; i < 10; i++)
+		std::cout << l1_error[i] << " ";
+	std::cout << std::endl;
+//	for (int i = 0; i < 500; i++)
+//		std::cout << i << ": " << l2[i] << ", " << l2_sigmoid_prime[i] << std::endl;
+	*/
 }
 
 
@@ -306,7 +476,7 @@ double neural_net::get_error()
 	int blockSize = 256;
 	int numBlocks = (n + blockSize - 1) / blockSize;
 	
-	thrust::device_vector<float> error_sums(labels.size(), 0);
+	thrust::device_vector<double> error_sums(labels.size(), 0);
 	cuda_get_error<<<numBlocks, blockSize>>>(n,
 			thrust::raw_pointer_cast(l3.data()), 
 			thrust::raw_pointer_cast(labels.data()), 
@@ -338,5 +508,79 @@ thrust::device_vector<float> neural_net::get_error_gradient()
 
 double neural_net::get_accuracy()
 {
-	return 0.0;
+	double acc = 0;
+	for (int i = 0; i < inputs.size() / opts.n_x; i++)
+	{
+		thrust::device_vector<float>::iterator iter = thrust::max_element(l3.begin() + (i * opts.n_o), 
+					l3.begin() + ((i + 1) * opts.n_o));
+		unsigned int pos = iter - (l3.begin() + (i * opts.n_o));
+		if (pos == labels[i])
+			acc++;
+	}
+
+	return acc / (inputs.size() / opts.n_x);
 }
+
+
+
+
+thrust::device_vector<float> neural_net::matrix_multiply(thrust::device_vector<float> A, thrust::device_vector<float> B, int a_rows, int a_cols, int b_rows, int b_cols, int op)
+{
+
+	int n = a_rows, m = a_cols, r = b_cols;
+	float alpha = 1.0f, beta = 0.0f;
+	thrust::device_vector<float> new_result;
+
+	//AxB
+	if (op == 0x01)
+	{
+		thrust::device_vector<float> result(n*r, 0);
+		new_result = thrust::device_vector<float>(n*r, 0);
+
+		//Multiply
+		cublasSgemm(h, CUBLAS_OP_T, CUBLAS_OP_T, n, r, m, &alpha, thrust::raw_pointer_cast(A.data()), m, thrust::raw_pointer_cast(B.data()), r, &beta, thrust::raw_pointer_cast(result.data()), n);
+		cudaDeviceSynchronize();
+
+		//Transpose result to row major
+		cublasSgeam(h, CUBLAS_OP_T, CUBLAS_OP_N, r, n, &alpha, thrust::raw_pointer_cast(result.data()), n, &beta, thrust::raw_pointer_cast(result.data()), r, thrust::raw_pointer_cast(new_result.data()), r);
+		cudaDeviceSynchronize(); 
+	}
+	else if (op == 0x02)
+	{
+		thrust::device_vector<float> transpose(n*m, 0);
+		thrust::device_vector<float> result(m*r, 0);
+		new_result = thrust::device_vector<float> (m*r, 0);
+
+		//Transpose
+		cublasSgeam(h, CUBLAS_OP_T, CUBLAS_OP_N, n, m, &alpha, thrust::raw_pointer_cast(A.data()), m, &beta, thrust::raw_pointer_cast(A.data()), n, thrust::raw_pointer_cast(transpose.data()), n);
+		cudaDeviceSynchronize(); 
+		//Multiply
+		cublasSgemm(h, CUBLAS_OP_T, CUBLAS_OP_T, m, r, n, &alpha, thrust::raw_pointer_cast(transpose.data()), n, thrust::raw_pointer_cast(B.data()), r, &beta, thrust::raw_pointer_cast(result.data()), m);
+		cudaDeviceSynchronize();
+		//Transpose result to row major
+		cublasSgeam(h, CUBLAS_OP_T, CUBLAS_OP_N, r, m, &alpha, thrust::raw_pointer_cast(result.data()), m, &beta, thrust::raw_pointer_cast(result.data()), r, thrust::raw_pointer_cast(new_result.data()), r);
+		cudaDeviceSynchronize(); 
+	}
+	
+	else if (op == 0x03)
+	{
+
+		r = b_rows;
+		thrust::device_vector<float> transpose(m*r, 0);
+		thrust::device_vector<float> result(n*r, 0);
+		new_result = thrust::device_vector<float> (n*r, 0);
+
+		//Transpose
+		cublasSgeam(h, CUBLAS_OP_T, CUBLAS_OP_N, r, m, &alpha, thrust::raw_pointer_cast(B.data()), m, &beta, thrust::raw_pointer_cast(B.data()), r, thrust::raw_pointer_cast(transpose.data()), r);
+		cudaDeviceSynchronize(); 
+		//Multiply
+		cublasSgemm(h, CUBLAS_OP_T, CUBLAS_OP_T, n, r, m, &alpha, thrust::raw_pointer_cast(A.data()), m, thrust::raw_pointer_cast(transpose.data()), r, &beta, thrust::raw_pointer_cast(result.data()), n);
+		cudaDeviceSynchronize();
+		//Transpose result to row major
+		cublasSgeam(h, CUBLAS_OP_T, CUBLAS_OP_N, r, n, &alpha, thrust::raw_pointer_cast(result.data()), n, &beta, thrust::raw_pointer_cast(result.data()), r, thrust::raw_pointer_cast(new_result.data()), r);
+		cudaDeviceSynchronize(); 
+	}
+	
+	return new_result;
+}
+

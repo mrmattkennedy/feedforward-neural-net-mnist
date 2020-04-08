@@ -189,6 +189,7 @@ def feed_forward(inputs, weights):
     #Empty return dict
     outputs = {}
 
+    pdb.set_trace()
     #Dot product of input value and weight
     z1 = linalg.dot(inputs, weights['W1']) + weights['b1']
 
@@ -398,4 +399,4 @@ def save_results():
             
 opts = init_params()
 if __name__ == '__main__':
-    save_results()
+    train()

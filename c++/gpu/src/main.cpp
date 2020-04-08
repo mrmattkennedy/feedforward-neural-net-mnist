@@ -30,26 +30,25 @@
 
 
 
-thrust::device_vector<float> matrix_multiply(thrust::device_vector<float> A, thrust::device_vector<float> B, int a_rows, int a_cols, int b_rows, int b_cols, int op);
+//thrust::device_vector<float> matrix_multiply(thrust::device_vector<float> A, thrust::device_vector<float> B, int a_rows, int a_cols, int b_rows, int b_cols, int op);
 
 int main(int argc, char** argv)
 {
 	std::string base_path = "..\\..\\MNIST data\\";
 	neural_net nn(base_path);
-	//nn.train();
-	///*
-	
-	int n = 3, m = 2, r = 4;
-	thrust::device_vector<float> v1(70000*500, 1);
-	thrust::device_vector<float> v2(70000*10, 1);
+	nn.train();
+/*	
+//	int n = 70000;
+//	thrust::device_vector<float> v1(70000, 1);
+	thrust::device_vector<float> v2(m*r, 1);
 	
 	v2[0] = 7;
-	v2[1] = 8;
-	v2[2] = 9;
-	v2[3] = 10;
-	v2[4] = 11;
-	v2[5] = 12;
-	v2[6] = 13;
+	v2[1] = 9;
+	v2[2] = 11;
+	v2[3] = 13;
+	v2[4] = 8;
+	v2[5] = 10;
+	v2[6] = 12;
 	v2[7] = 14;
 	v1[0] = 1;
 	v1[1] = 2;
@@ -57,6 +56,18 @@ int main(int argc, char** argv)
 	v1[3] = 4;
 	v1[4] = 5;
 	v1[5] = 6;
+
+	cublasHandle_t h;
+	cublasCreate(&h);
+	thrust::device_vector<float> result(n*r, 0);
+	float alpha = 1.0f, beta=0.0f;
+	
+	cublasSgemm(h, CUBLAS_OP_T, CUBLAS_OP_T, n, r, m, &alpha, thrust::raw_pointer_cast(v1.data()), m, thrust::raw_pointer_cast(v2.data()), r, &beta, thrust::raw_pointer_cast(result.data()), n);
+	cudaDeviceSynchronize();
+	for (int i = 0; i < n*r; i++)
+		std::cout << result[i] << " ";
+	std::cout << std::endl;
+	*/
 	/*
 	v2[0] = 13;
 	v2[1] = 14;
@@ -98,6 +109,7 @@ int main(int argc, char** argv)
 	v1[10] = 11;
 	v1[11] = 12;
 	*/
+	/*
 	thrust::device_vector<float> transpose(4*2, 0);
 	//thrust::device_vector<float> result(3*4, 0);
 	cublasHandle_t h;
@@ -106,11 +118,11 @@ int main(int argc, char** argv)
 	
 	thrust::fill(v1.begin(), v1.end(), 1);
 	thrust::fill(v2.begin(), v2.end(), 1);
-	auto result = matrix_multiply(v1, v2, 70000, 500, 70000, 10, 0x02);
+	//auto result = matrix_multiply(v1, v2, 70000, 500, 70000, 10, 0x02);
 	for (int i = 0; i < 10; i++)
 		std::cout << result[i] << " ";
 	std::cout << std::endl;
-	
+	*/
 
 	/*
 	//A x B, result is mxr
@@ -189,12 +201,13 @@ int main(int argc, char** argv)
 			}
 		}
 	}
-	*/
+	
 	cublasDestroy(h);
+	*/
 	return 0;
 }
 
-
+/*
 thrust::device_vector<float> matrix_multiply(thrust::device_vector<float> A, thrust::device_vector<float> B, int a_rows, int a_cols, int b_rows, int b_cols, int op)
 {
 	int n = a_rows, m = a_cols, r = b_cols;
@@ -256,4 +269,4 @@ thrust::device_vector<float> matrix_multiply(thrust::device_vector<float> A, thr
 
 	return new_result;
 }
-
+*/
