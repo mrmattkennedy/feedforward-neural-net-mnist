@@ -133,7 +133,6 @@ def train():
             velocities['W1'] = opts.beta * velocities['W1'] + (1 - opts.beta) * deltas['dW1']
             velocities['b1'] = opts.beta * velocities['b1'] + (1 - opts.beta) * deltas['db1']
 
-            #pdb.set_trace()    
             #Update weights
             weights['W3'] = weights['W3'] - opts.alpha * velocities['W3']
             weights['b3'] = weights['b3'] - opts.alpha * velocities['b3']
@@ -247,7 +246,8 @@ def back_propagation(weights, outputs, train_input, train_target):
 
     #Append the bias
     deltas['db1'] = np.sum(hidden_error, axis=0, keepdims=True) / error_gradient.shape[0]
-    
+
+    pdb.set_trace()  
     #Return
     return output_error, deltas
 

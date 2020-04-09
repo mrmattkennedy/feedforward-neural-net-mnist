@@ -28,8 +28,6 @@
 #include <cstdlib>
 #include <math.h>
 
-
-
 //thrust::device_vector<float> matrix_multiply(thrust::device_vector<float> A, thrust::device_vector<float> B, int a_rows, int a_cols, int b_rows, int b_cols, int op);
 
 int main(int argc, char** argv)
@@ -37,6 +35,7 @@ int main(int argc, char** argv)
 	std::string base_path = "..\\..\\MNIST data\\";
 	neural_net nn(base_path);
 	nn.train();
+	
 /*	
 //	int n = 70000;
 //	thrust::device_vector<float> v1(70000, 1);
