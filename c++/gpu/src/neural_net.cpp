@@ -41,7 +41,7 @@ struct RandGen
 	{
 		thrust::default_random_engine randEng;
 		randEng.discard(N * thread_id);
-		thrust::uniform_real_distribution<float> uniDist(-0.02, 0.02);
+		thrust::uniform_real_distribution<float> uniDist(-0.2, 0.2);
 		return uniDist(randEng);
 	}
 };
@@ -173,54 +173,102 @@ void neural_net::train()
 	int blockSize = 256;
 	int numBlocks = (opts.n_o * opts.n_h2 + blockSize - 1) / blockSize;
 
-	for (int i = 0; i < 100; i++)
+	for (int i = 0; i < 30; i++)
 	{
 		feed_forward();
 		back_propagation();
-		
+		printf("V3 before:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << v_w3[i] << " ";
+		std::cout << std::endl;
 		//Update velocities
 		cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_o * opts.n_h2, 
 				thrust::raw_pointer_cast(v_w3.data()),
 				thrust::raw_pointer_cast(l3_delta.data()),
 				opts.beta);
 		cudaDeviceSynchronize(); 
+		printf("V3 after:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << v_w3[i] << " ";
+		std::cout << std::endl;
 
 		numBlocks = (opts.n_h2 * opts.n_h1 + blockSize - 1) / blockSize;
+		printf("V2 before:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << v_w2[i] << " ";
+		std::cout << std::endl;
 		cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_h2 * opts.n_h1, 
 				thrust::raw_pointer_cast(v_w2.data()),
 				thrust::raw_pointer_cast(l2_delta.data()),
 				opts.beta);
 		cudaDeviceSynchronize(); 
+		printf("V2 after:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << v_w2[i] << " ";
+		std::cout << std::endl;
 
 		numBlocks = (opts.n_h1 * opts.n_x + blockSize - 1) / blockSize;
+		printf("V1 before:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << v_w1[i] << " ";
+		std::cout << std::endl;
 		cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_h1 * opts.n_x,
 				thrust::raw_pointer_cast(v_w1.data()),
 				thrust::raw_pointer_cast(l1_delta.data()),
 				opts.beta);
 		cudaDeviceSynchronize(); 
+		printf("V1 after:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << v_w1[i] << " ";
+		std::cout << std::endl;
 
 		//Update weights
 		numBlocks = (opts.n_o * opts.n_h2 + blockSize - 1) / blockSize;
+		printf("W3 before:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << w3[i] << " ";
+		std::cout << std::endl;
 		cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_o * opts.n_h2, 
 				thrust::raw_pointer_cast(w3.data()),
 				thrust::raw_pointer_cast(v_w3.data()),
 				opts.alpha);
 		cudaDeviceSynchronize(); 
+		printf("W3 after:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << w3[i] << " ";
+		std::cout << std::endl;
 
 		numBlocks = (opts.n_h2 * opts.n_h1 + blockSize - 1) / blockSize;
+		printf("W2 before:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << w2[i] << " ";
+		std::cout << std::endl;
 		cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_h2 * opts.n_h1, 
 				thrust::raw_pointer_cast(w2.data()),
 				thrust::raw_pointer_cast(v_w2.data()),
 				opts.alpha);
 		cudaDeviceSynchronize(); 
+		printf("W2 after:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << w2[i] << " ";
+		std::cout << std::endl;
 
 		numBlocks = (opts.n_h1 * opts.n_x + blockSize - 1) / blockSize;
+		printf("W1 before:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << w1[i] << " ";
+		std::cout << std::endl;
 		cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_h1 * opts.n_x, 
 				thrust::raw_pointer_cast(w1.data()),
 				thrust::raw_pointer_cast(v_w1.data()),
 				opts.alpha);
 		cudaDeviceSynchronize(); 
+		printf("W1 after:\t");
+		for (int i = 0; i < 10; i++)
+			std::cout << w1[i] << " ";
+		std::cout << std::endl;
 		printf("%d:\tError:%f\tAccuracy:\n", i, model_error);
+		std::cout << std::endl;
 	}
 	end = clock();
 	cublasDestroy(h);
@@ -350,7 +398,7 @@ void neural_net::back_propagation()
 {	
 	model_error = get_error();
 	thrust::device_vector<float> error_gradient = get_error_gradient();
-
+	
 	int n = inputs.size() / opts.n_x, m = opts.n_h2, r = opts.n_o;
 	int blockSize = 256;	
 	int numBlocks = (n + blockSize - 1) / blockSize;
@@ -430,26 +478,31 @@ void neural_net::back_propagation()
 			r);
 	
 	//printf("Size is %d, %d\n", l1_delta.size(), l1_bias_delta.size());
-	/*
+	printf("Deltas are: \n");
+	printf("L3:\t");
 	for (int i = 0; i < 10; i++)
 		std::cout << l3_delta[i] << " ";
 	std::cout << std::endl;
+	printf("L3B:\t");
 	for (int i = 0; i < 10; i++)
 		std::cout << l3_bias_delta[i] << " ";
 	std::cout << std::endl;
+	printf("L2:\t");
 	for (int i = 0; i < 10; i++)
 		std::cout << l2_delta[i] << " ";
 	std::cout << std::endl;
+	printf("L2B:\t");
 	for (int i = 0; i < 10; i++)
 		std::cout << l2_bias_delta[i] << " ";
 	std::cout << std::endl;
+	printf("L1:\t");
 	for (int i = 0; i < 10; i++)
 		std::cout << l1_delta[i] << " ";
 	std::cout << std::endl;
+	printf("L1B:\t");
 	for (int i = 0; i < 10; i++)
 		std::cout << l1_bias_delta[i] << " ";
 	std::cout << std::endl;
-	*/
 	/*
 	printf("Sizes are %d, %d, %d, %d\n", l1_out_error.size(), l1_sigmoid_prime.size(), l1.size(), l1_error.size());
 	for (int i = 0; i < 10; i++)

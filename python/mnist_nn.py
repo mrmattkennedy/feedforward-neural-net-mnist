@@ -29,9 +29,9 @@ def init_params():
                         help='number of output units')
     parser.add_argument('--beta', type=float, default=0.9,
                         help='parameter for momentum')
-    parser.add_argument('--batch_size', type=int, default=300,
+    parser.add_argument('--batch_size', type=int, default=60000,
                         help='input batch size')
-    parser.add_argument('--batches', type=int, default=200,
+    parser.add_argument('--batches', type=int, default=1,
                         help='batch iterations')
     return parser.parse_args()
 
@@ -132,7 +132,8 @@ def train():
             velocities['b2'] = opts.beta * velocities['b2'] + (1 - opts.beta) * deltas['db2']
             velocities['W1'] = opts.beta * velocities['W1'] + (1 - opts.beta) * deltas['dW1']
             velocities['b1'] = opts.beta * velocities['b1'] + (1 - opts.beta) * deltas['db1']
-    
+
+            #pdb.set_trace()    
             #Update weights
             weights['W3'] = weights['W3'] - opts.alpha * velocities['W3']
             weights['b3'] = weights['b3'] - opts.alpha * velocities['b3']
@@ -163,19 +164,19 @@ def feed_forward(inputs, weights):
     outputs = {}
     
     #Dot product of input value and weight
-    z1 = np.dot(inputs, weights['W1']) + weights['b1']
+    z1 = np.dot(inputs, weights['W1'])# + weights['b1']
     
     #Input is now equal to activation of output
     a1 = sigmoid(z1)
 
     #Dot product of input value and weight
-    z2 = np.dot(a1, weights['W2']) + weights['b2']
+    z2 = np.dot(a1, weights['W2'])# + weights['b2']
     
     #Input is now equal to activation of output
     a2 = sigmoid(z2)
     
     #Dot product of hidden layer out and weight
-    z3 = np.dot(a2, weights['W3']) + weights['b3']
+    z3 = np.dot(a2, weights['W3'])# + weights['b3']
 
     #Run through softmax
     a3 = softmax(z3)
@@ -214,10 +215,8 @@ def back_propagation(weights, outputs, train_input, train_target):
     #Append the delta
     deltas['dW3'] = out_delta
 
-    pdb.set_trace()
     #Append the bias
     deltas['db3'] = np.sum(error_gradient, axis=0, keepdims=True) / error_gradient.shape[0]
-
 
     #Get error for the hidden layer output(previous layer error * weights)
     hidden_out_error_2 = np.dot(error_gradient, weights['W3'].T)
@@ -343,5 +342,6 @@ def save_results():
             
 opts = init_params()
 if __name__ == '__main__':
-    save_results()
+    #save_results()
+    train()
 

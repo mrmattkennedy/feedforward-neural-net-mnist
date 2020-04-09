@@ -49,3 +49,5 @@ transpose result is rnnrr (43344)
 
 row major
 0->9
+
+weights up to 1.0 will cause massive results for a1 and will make deltas impossible
