@@ -91,12 +91,24 @@ struct GetIndices
 
 
 __global__ 
+void cuda_clip(int n, float *x, float max)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		if (x[i] > max)
+			x[i] = max;
+		else if (x[i] < -max)
+			x[i] = -max;
+}
+
+__global__ 
 void sigmoid_cuda(int n, float *x)
 {
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x;
 	for (int i = index; i < n; i += stride)
-		x[i] = 1 / (1 + __expf(-x[i]));
+		x[i] = 1 / (1 + exp(-x[i]));
 }
 
 __global__ 
@@ -114,7 +126,7 @@ void cuda_get_exp(int n, float *x)
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x;
 	for (int i = index; i < n; i += stride)
-		x[i] = __expf(x[i]);
+		x[i] = exp(x[i]);
 }
 
 
@@ -134,7 +146,7 @@ void cuda_get_error(int n, float *outputs, float *labels, double *sums, int n_o)
 	int stride = blockDim.x * gridDim.x;
 	for (int i = index; i < n; i += stride)
 	{
-		sums[i] = -__logf(outputs[(i*n_o) + (int)labels[i]] + 1e-10);
+		sums[i] = -log(outputs[(i*n_o) + (int)labels[i]] + 1e-10);
 	}
 }
 
@@ -225,7 +237,7 @@ void neural_net::train()
 	int blockSize = 256;
 	int numBlocks = (opts.n_o * opts.n_h2 + blockSize - 1) / blockSize;
 
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 20; i++)
 	{
 		feed_forward();
 		back_propagation();
@@ -373,11 +385,14 @@ void neural_net::feed_forward()
 	int n = inputs.size() / opts.n_x, m = opts.n_x, r = opts.n_h1; //inputs is 70000x784 (NxM), w1 is 784x600 (MxR),
 	auto a1 = matrix_multiply(inputs, w1, n, m, m, r, NORMAL);
 	cudaDeviceSynchronize(); 
+
 	//clip a1 values, assign to l1
-	l1 = clip(a1);
+	l1 = a1;
+	int numBlocks = (n*r + blockSize - 1) / blockSize;
+	cuda_clip<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l1.data()), MAX_E);
+	cudaDeviceSynchronize();
 
 	//Cuda kernel for __expf, fast exponent
-	int numBlocks = (n*r + blockSize - 1) / blockSize;
 	sigmoid_cuda<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l1.data()));
 	cudaDeviceSynchronize();
 	
@@ -388,10 +403,12 @@ void neural_net::feed_forward()
 	cudaDeviceSynchronize(); 
 	
 	//clip a2 values, assign to l2
-	l2 = clip(a2);
+	l2 = a2;
+	numBlocks = (n*r + blockSize - 1) / blockSize;
+	cuda_clip<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l2.data()), MAX_E);
+	cudaDeviceSynchronize();
 
 	//Cuda kernel for __expf, fast exponent
-	numBlocks = (n*r + blockSize - 1) / blockSize;
 	sigmoid_cuda<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l2.data()));
 	cudaDeviceSynchronize();
 
@@ -450,28 +467,6 @@ void neural_net::feed_forward()
 }
 
 
-thrust::device_vector<float> neural_net::clip(thrust::device_vector<float> in, int max_power_val)
-{
-	thrust::device_vector<float>::iterator iter = thrust::max_element(in.begin(), in.end());
-	float max_val = std::abs(*iter);
-	iter = thrust::min_element(in.begin(), in.end());
-	float min_val = std::abs(*iter);
-	
-	//Get largest after absolute value
-	float largest_val = std::max(min_val, max_val);
-
-	//Divide max_val by this factor, as e^88 overflows for 32 bit floats
-	float factor = max_power_val / largest_val;
-	
-	//Multiply each element by factor
-	thrust::device_vector<float> ret(in.size(), 0);
-	thrust::transform(in.begin(), in.end(),
-		thrust::make_constant_iterator(factor),
-		ret.begin(),
-		thrust::multiplies<float>());
-
-	return ret;
-}
 
 void neural_net::back_propagation()
 {	
@@ -574,7 +569,7 @@ void neural_net::back_propagation()
 	//printf("Size is %d, %d\n", l1_delta.size(), l1_bias_delta.size());
 	printf("Deltas are: \n");
 	printf("L3:\t");
-	for (int i = 0; i < 10; i++)
+	for (int i = 10; i < 20; i++)
 		std::cout << l3_delta[i] << " ";
 	std::cout << std::endl;
 	printf("L3B:\t");
@@ -582,19 +577,19 @@ void neural_net::back_propagation()
 		std::cout << l3_bias_delta[i] << " ";
 	std::cout << std::endl;
 	printf("L2:\t");
-	for (int i = 0; i < 10; i++)
+	for (int i = 10; i < 20; i++)
 		std::cout << l2_delta[i] << " ";
 	std::cout << std::endl;
 	printf("L2B:\t");
-	for (int i = 0; i < 10; i++)
+	for (int i = 10; i < 20; i++)
 		std::cout << l2_bias_delta[i] << " ";
 	std::cout << std::endl;
 	printf("L1:\t");
-	for (int i = 0; i < 10; i++)
+	for (int i = 10; i < 20; i++)
 		std::cout << l1_delta[i] << " ";
 	std::cout << std::endl;
 	printf("L1B:\t");
-	for (int i = 0; i < 10; i++)
+	for (int i = 10; i < 20; i++)
 		std::cout << l1_bias_delta[i] << " ";
 	std::cout << std::endl;
 	/*
