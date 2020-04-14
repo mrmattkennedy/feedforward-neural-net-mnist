@@ -55,6 +55,7 @@ class neural_net
 		void create_arch();
 		thrust::device_vector<float> neural_net::init_weight(int insize, int outsize);
 		void feed_forward();
+		thrust::device_vector<float> clip(thrust::device_vector<float>, int max_power_val=88);
 		void back_propagation();
 		double get_error();
 		thrust::device_vector<float> get_error_gradient();

@@ -91,15 +91,12 @@ struct GetIndices
 
 
 __global__ 
-void cuda_clip(int n, float *x, float max)
+void cuda_add_bias(int n, float *x, float *bias, int n_x)
 {
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x;
 	for (int i = index; i < n; i += stride)
-		if (x[i] > max)
-			x[i] = max;
-		else if (x[i] < -max)
-			x[i] = -max;
+		x[i] += bias[i % n_x];
 }
 
 __global__ 
@@ -151,15 +148,13 @@ void cuda_get_error(int n, float *outputs, float *labels, double *sums, int n_o)
 }
 
 __global__ 
-void cuda_get_error_gradient(int n, float *outputs, float *labels, float *gradient, int n_o)
+void cuda_get_error_gradient(int n, float *labels, float *gradient, int n_o)
 {
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x;
 	for (int i = index; i < n; i += stride)
-		if (i == ((i / n_o) + labels[i / n_o]))
-			gradient[i] = outputs[i] - 1;
-		else
-			gradient[i] = outputs[i];
+		if (i % n_o == labels[i / n_o])
+			gradient[i] -= 1;
 }
 
 __global__ 
@@ -385,12 +380,13 @@ void neural_net::feed_forward()
 	int n = inputs.size() / opts.n_x, m = opts.n_x, r = opts.n_h1; //inputs is 70000x784 (NxM), w1 is 784x600 (MxR),
 	auto a1 = matrix_multiply(inputs, w1, n, m, m, r, NORMAL);
 	cudaDeviceSynchronize(); 
+	
+	//Add bias
+	int numBlocks = (n*r + blockSize - 1) / blockSize;
+	cuda_add_bias<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(a1.data()), thrust::raw_pointer_cast(b1.data()), r);
 
 	//clip a1 values, assign to l1
-	l1 = a1;
-	int numBlocks = (n*r + blockSize - 1) / blockSize;
-	cuda_clip<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l1.data()), MAX_E);
-	cudaDeviceSynchronize();
+	l1 = clip(a1);
 
 	//Cuda kernel for __expf, fast exponent
 	sigmoid_cuda<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l1.data()));
@@ -402,11 +398,12 @@ void neural_net::feed_forward()
 	auto a2 = matrix_multiply(l1, w2, n, m, m, r, NORMAL);
 	cudaDeviceSynchronize(); 
 	
-	//clip a2 values, assign to l2
-	l2 = a2;
+	//Add bias
 	numBlocks = (n*r + blockSize - 1) / blockSize;
-	cuda_clip<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l2.data()), MAX_E);
-	cudaDeviceSynchronize();
+	cuda_add_bias<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(a2.data()), thrust::raw_pointer_cast(b2.data()), r);
+
+	//clip a2 values, assign to l2
+	l2 = clip(a2);
 
 	//Cuda kernel for __expf, fast exponent
 	sigmoid_cuda<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l2.data()));
@@ -418,10 +415,15 @@ void neural_net::feed_forward()
 	auto a3 = matrix_multiply(l2, w3, n, m, m, r, NORMAL);
 	cudaDeviceSynchronize(); 
 	
+	//Add bias
+	numBlocks = (n*r + blockSize - 1) / blockSize;
+	cuda_add_bias<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(a3.data()), thrust::raw_pointer_cast(b3.data()), r);
+
 	//Get exponent
 	l3 = a3;
 	numBlocks = (n*r + blockSize - 1) / blockSize;
 	cuda_get_exp<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l3.data()));
+	cudaDeviceSynchronize(); 
 
 	//Get sequences
 	int sequence_length = opts.n_o;
@@ -466,7 +468,23 @@ void neural_net::feed_forward()
 	std::cout << std::endl;
 }
 
+thrust::device_vector<float> neural_net::clip(thrust::device_vector<float> in, int max_power_val)
+{
+	thrust::device_vector<float>::iterator iter = thrust::max_element(in.begin(), in.end());
+	float max_val = std::abs(*iter);
+	iter = thrust::min_element(in.begin(), in.end());
+	float min_val = std::abs(*iter);
+	
+	//Get largest after absolute value
+	float largest_val = std::max(min_val, max_val);
 
+	//Divide max_val by this factor, as e^88 overflows for 32 bit floats
+	float factor = max_power_val / largest_val;
+	
+	//Multiply each element by factor
+	thrust::for_each(in.begin(), in.end(), thrust::placeholders::_1 /= factor);
+	return in;
+}
 
 void neural_net::back_propagation()
 {	
@@ -479,6 +497,7 @@ void neural_net::back_propagation()
 	//Get out delta
 	l3_delta = matrix_multiply(l2, error_gradient, n, m, n, r, TRANSPOSE_A);
 	thrust::for_each(l3_delta.begin(), l3_delta.end(), thrust::placeholders::_1 /= n);
+	cudaDeviceSynchronize(); 
 
 	//Get bias delta
 	int numBlocks = (n*r + blockSize - 1) / blockSize;
@@ -490,6 +509,7 @@ void neural_net::back_propagation()
 	cudaDeviceSynchronize(); 
 	//Divide after - significantly less divide operations this way
 	thrust::for_each(l3_bias_delta.begin(), l3_bias_delta.end(), thrust::placeholders::_1 /= n);
+	cudaDeviceSynchronize(); 
 
 
 	//Hidden layer 2	
@@ -503,7 +523,8 @@ void neural_net::back_propagation()
 	sigmoid_prime_cuda<<<numBlocks, blockSize>>>(n*r,
 			thrust::raw_pointer_cast(l2.data()), 
 			thrust::raw_pointer_cast(l2_sigmoid_prime.data()));
-	
+	cudaDeviceSynchronize(); 
+
 	//Get hidden layer 2 error
 	thrust::device_vector<float> l2_error(n*r, 0);
 	cuda_get_layer_error<<<numBlocks, blockSize>>>(n*r,
@@ -523,6 +544,7 @@ void neural_net::back_propagation()
 			thrust::raw_pointer_cast(l2_error.data()), 
 			thrust::raw_pointer_cast(l2_bias_delta.data()), 
 			r);
+	cudaDeviceSynchronize(); 
 	//Divide after - significantly less divide operations this way
 	thrust::for_each(l2_bias_delta.begin(), l2_bias_delta.end(), thrust::placeholders::_1 /= n);
 	cudaDeviceSynchronize(); 
@@ -562,6 +584,7 @@ void neural_net::back_propagation()
 			thrust::raw_pointer_cast(l1_error.data()), 
 			thrust::raw_pointer_cast(l1_bias_delta.data()), 
 			r);
+	cudaDeviceSynchronize(); 
 	//Divide after - significantly less divide operations this way
 	thrust::for_each(l1_bias_delta.begin(), l1_bias_delta.end(), thrust::placeholders::_1 /= n);
 	cudaDeviceSynchronize(); 
@@ -569,7 +592,7 @@ void neural_net::back_propagation()
 	//printf("Size is %d, %d\n", l1_delta.size(), l1_bias_delta.size());
 	printf("Deltas are: \n");
 	printf("L3:\t");
-	for (int i = 10; i < 20; i++)
+	for (int i = 0; i < 11; i++)
 		std::cout << l3_delta[i] << " ";
 	std::cout << std::endl;
 	printf("L3B:\t");
@@ -577,38 +600,74 @@ void neural_net::back_propagation()
 		std::cout << l3_bias_delta[i] << " ";
 	std::cout << std::endl;
 	printf("L2:\t");
-	for (int i = 10; i < 20; i++)
+	for (int i = 0; i < 11; i++)
 		std::cout << l2_delta[i] << " ";
 	std::cout << std::endl;
 	printf("L2B:\t");
-	for (int i = 10; i < 20; i++)
+	for (int i = 0; i < 11; i++)
 		std::cout << l2_bias_delta[i] << " ";
 	std::cout << std::endl;
 	printf("L1:\t");
-	for (int i = 10; i < 20; i++)
+	for (int i = 0; i < 11; i++)
 		std::cout << l1_delta[i] << " ";
 	std::cout << std::endl;
 	printf("L1B:\t");
-	for (int i = 10; i < 20; i++)
+	for (int i = 0; i < 11; i++)
 		std::cout << l1_bias_delta[i] << " ";
 	std::cout << std::endl;
-	/*
-	printf("Sizes are %d, %d, %d, %d\n", l1_out_error.size(), l1_sigmoid_prime.size(), l1.size(), l1_error.size());
-	for (int i = 0; i < 10; i++)
-		std::cout << l1_out_error[i] << " ";
-	std::cout << std::endl;
-	for (int i = 0; i < 10; i++)
-		std::cout << l1[i] << " ";
-	std::cout << std::endl;
-	for (int i = 0; i < 10; i++)
-		std::cout << l1_sigmoid_prime[i] << " ";
-	std::cout << std::endl;
-	for (int i = 0; i < 10; i++)
-		std::cout << l1_error[i] << " ";
-	std::cout << std::endl;
-//	for (int i = 0; i < 500; i++)
-//		std::cout << i << ": " << l2[i] << ", " << l2_sigmoid_prime[i] << std::endl;
-	*/
+	printf("\nMaxes:\n");
+	thrust::device_vector<float>::iterator iter = thrust::max_element(error_gradient.begin(), error_gradient.end());
+	unsigned int position = iter - error_gradient.begin();
+	float max = *iter;
+	printf("EG: %f, %d\n", max, position);
+	iter = thrust::max_element(l3_delta.begin(), l3_delta.end());
+	position = iter - l3_delta.begin();
+	max = *iter;
+	printf("L3D: %f, %d\n", max, position);
+	iter = thrust::max_element(l3.begin(), l3.end());
+	position = iter - l3.begin();
+	max = *iter;
+	printf("L3: %f, %d\n", max, position);
+	iter = thrust::max_element(l2_out_error.begin(), l2_out_error.end());
+	position = iter - l2_out_error.begin();
+	max = *iter;
+	printf("L2O: %f, %d\n", max, position);
+	iter = thrust::max_element(l2.begin(), l2.end());
+	position = iter - l2.begin();
+	max = *iter;
+	printf("L2: %f, %d\n", max, position);
+	iter = thrust::max_element(l2_sigmoid_prime.begin(), l2_sigmoid_prime.end());
+	position = iter - l2_sigmoid_prime.begin();
+	max = *iter;
+	printf("L2S: %f, %d\n", max, position);
+	iter = thrust::max_element(l2_error.begin(), l2_error.end());
+	position = iter - l2_error.begin();
+	max = *iter;
+	printf("L2E: %f, %d\n", max, position);
+	iter = thrust::max_element(l2_delta.begin(), l2_delta.end());
+	position = iter - l2_delta.begin();
+	max = *iter;
+	printf("L2D: %f, %d\n", max, position);
+	iter = thrust::max_element(l1_out_error.begin(), l1_out_error.end());
+	position = iter - l2_delta.begin();
+	max = *iter;
+	printf("L1O: %f, %d\n", max, position);
+	iter = thrust::max_element(l1.begin(), l1.end());
+	position = iter - l1.begin();
+	max = *iter;
+	printf("L1: %f, %d\n", max, position);
+	iter = thrust::max_element(l1_sigmoid_prime.begin(), l1_sigmoid_prime.end());
+	position = iter - l1_sigmoid_prime.begin();
+	max = *iter;
+	printf("L1S: %f, %d\n", max, position);
+	iter = thrust::max_element(l1_error.begin(), l1_error.end());
+	position = iter - l1_error.begin();
+	max = *iter;
+	printf("L1E: %f, %d\n", max, position);
+	iter = thrust::max_element(l1_delta.begin(), l1_delta.end());
+	position = iter - l1_delta.begin();
+	max = *iter;
+	printf("L1D: %f, %d\n", max, position);
 }
 
 
@@ -635,15 +694,26 @@ thrust::device_vector<float> neural_net::get_error_gradient()
 	int n = l3.size();
 	int blockSize = 256;
 	int numBlocks = (n + blockSize - 1) / blockSize;
-	
-	thrust::device_vector<float> error_gradient(l3.size(), 0);
+	printf("N: %d, numBlocks: %d\n", n, numBlocks);
+	auto error_gradient = l3;
 	cuda_get_error_gradient<<<numBlocks, blockSize>>>(n,
-			thrust::raw_pointer_cast(l3.data()), 
 			thrust::raw_pointer_cast(labels.data()), 
 			thrust::raw_pointer_cast(error_gradient.data()), 
 			opts.n_o);
 	
 	cudaDeviceSynchronize(); 
+	printf("First 10 rows of EG\n");
+	for (int i = 0; i < 100; i++)
+	{
+		if (i % 10 == 0)
+			std::cout << std::endl;
+		std:: cout << error_gradient[i] << " ";
+	}	
+	std::cout << std::endl;
+	printf("First 10 labels\n");
+	for (int i = 0; i < 100; i++)
+		std:: cout << labels[i] << " ";
+	std::cout << std::endl;
 	return error_gradient;
 }
 
@@ -670,7 +740,38 @@ double neural_net::get_accuracy()
 	//Get just the indices from the vector of max tuples for each row
 	thrust::device_vector<float> indices(nRows);
 	thrust::transform(row_argmaxes.begin(), row_argmaxes.end(), indices.begin(), GetIndices(opts.n_o));
-	
+
+	printf("First 10 choices:\n");
+	for (int i = 0; i < 10; i++)
+	{
+		argMaxType tmp=row_argmaxes[i];
+		std::cout << thrust::get<0>(tmp) << " ";
+	}
+	std::cout << std::endl;
+	printf("First 5 rows L3\n");
+	for (int i = 0; i < 50; i++)
+	{
+		if (i % 10 == 0)
+			std::cout << std::endl;
+		std::cout << l3[i] << " ";
+	}
+	std::cout << std::endl;	
+	printf("First 5 rowsL2\n");
+	for (int i = 0; i < 50; i++)
+	{
+		if (i % 10 == 0)
+			std::cout << std::endl;
+		std::cout << l2[i] << " ";
+	}
+	std::cout << std::endl;
+	printf("First 5 rowsL1\n");
+	for (int i = 0; i < 50; i++)
+	{
+		if (i % 10 == 0)
+			std::cout << std::endl;
+		std::cout << l1[i] << " ";
+	}
+	std::cout << std::endl;
 	//Get accuracy	
 	int blockSize = 256;
 	int numBlocks = (nRows + blockSize - 1) / blockSize;
