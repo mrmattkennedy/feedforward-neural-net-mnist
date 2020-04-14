@@ -29,10 +29,12 @@ class neural_net
 		thrust::device_vector<float> v_b3;
 
 		thrust::device_vector<float> inputs;
+		thrust::device_vector<float> labels;
+		thrust::device_vector<float> test_in;
+		thrust::device_vector<float> test_labels;
 		thrust::device_vector<float> l1;
 		thrust::device_vector<float> l2;
 		thrust::device_vector<float> l3;
-		thrust::device_vector<float> labels;
 		
 		thrust::device_vector<float> l3_delta;
 		thrust::device_vector<float> l3_bias_delta;
@@ -51,10 +53,11 @@ class neural_net
 		neural_net(std::string base_path);
 		~neural_net();
 		
+		void shuffle_and_flatten();
 		void train();
 		void create_arch();
 		thrust::device_vector<float> neural_net::init_weight(int insize, int outsize);
-		void feed_forward();
+		void feed_forward(thrust::device_vector<float> in);
 		thrust::device_vector<float> clip(thrust::device_vector<float>, int max_power_val=88);
 		void back_propagation();
 		double get_error();

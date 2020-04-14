@@ -215,119 +215,112 @@ neural_net::~neural_net()
 	//empty
 }
 
+void neural_net::shuffle_and_flatten()
+{
+	//Initialize shuffled vector of ints with range 0 to size of data
+	int train_size = 60000;
+	int test_size = 10000;
+	int data_size = train_size + test_size;
+
+	std::vector<int> shuffle_vec(data_size);
+	std::iota(std::begin(shuffle_vec), std::end(shuffle_vec), 0);
+	srand(unsigned(time(NULL)));
+	std::random_shuffle(shuffle_vec.begin(), shuffle_vec.end());
+	
+	//Iterate and assign new shuffled data
+	std::vector<float> flattened;
+	std::vector<float> shuffled_labels(data_size);
+	for (int i = 0; i < data_size; i++)
+	{
+		//flatten.insert(flatten.end(), data.m_images[shuffle_vec[i]].begin(), data.m_images[shuffle_vec[i]].end());
+		std::copy(data.m_images[shuffle_vec[i]].begin(), data.m_images[shuffle_vec[i]].end(), std::back_inserter(flattened));
+		shuffled_labels[i] = data.m_labels[shuffle_vec[i]];
+	}
+	
+	//Assign new data
+	thrust::copy(flattened.begin(), flattened.begin() + (train_size*opts.n_x), inputs.begin());
+	thrust::copy(shuffled_labels.begin(), shuffled_labels.begin() + train_size, labels.begin());
+
+	thrust::copy(flattened.begin() + (train_size*opts.n_x), flattened.end(), test_in.begin());
+	thrust::copy(shuffled_labels.begin() + train_size, shuffled_labels.end(), test_labels.begin());
+}
+
 void neural_net::train()
 {
 	clock_t start, end;
 	create_arch();
+
 	int train_size = 60000;
-	
-	inputs = thrust::device_vector<float>(data.m_images.size());
-	thrust::copy(data.m_images.begin(), data.m_images.end(), inputs.begin());
-	labels = thrust::device_vector<float>(data.m_labels.size());
-	thrust::copy(data.m_labels.begin(), data.m_labels.end(), labels.begin());
-	
+	int test_size = 10000;
+	inputs = thrust::device_vector<float>(train_size*opts.n_x);
+	labels = thrust::device_vector<float>(train_size);
+	test_in = thrust::device_vector<float>(test_size*opts.n_x);
+	test_labels = thrust::device_vector<float>(test_size);
+
 	cublasCreate(&h);
 	start = clock();
 	
 	int blockSize = 256;
 	int numBlocks = (opts.n_o * opts.n_h2 + blockSize - 1) / blockSize;
+	thrust::device_vector<float> batch_x(opts.batch_size);
+	thrust::device_vector<float> batch_y(opts.batch_size);
 
-	for (int i = 0; i < 20; i++)
+	for (int i = 0; i < opts.epochs; i++)
 	{
-		feed_forward();
-		back_propagation();
-		printf("V3 before:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << v_w3[i] << " ";
-		std::cout << std::endl;
-		//Update velocities
-		cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_o * opts.n_h2, 
-				thrust::raw_pointer_cast(v_w3.data()),
-				thrust::raw_pointer_cast(l3_delta.data()),
-				opts.beta);
-		cudaDeviceSynchronize(); 
-		printf("V3 after:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << v_w3[i] << " ";
-		std::cout << std::endl;
+		shuffle_and_flatten();
+		for (int j = 0; j < opts.batches; j++)
+		{
+			feed_forward(inputs);
+			back_propagation();
 
-		numBlocks = (opts.n_h2 * opts.n_h1 + blockSize - 1) / blockSize;
-		printf("V2 before:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << v_w2[i] << " ";
-		std::cout << std::endl;
-		cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_h2 * opts.n_h1, 
-				thrust::raw_pointer_cast(v_w2.data()),
-				thrust::raw_pointer_cast(l2_delta.data()),
-				opts.beta);
-		cudaDeviceSynchronize(); 
-		printf("V2 after:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << v_w2[i] << " ";
-		std::cout << std::endl;
+			//Update velocities
+			cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_o * opts.n_h2, 
+					thrust::raw_pointer_cast(v_w3.data()),
+					thrust::raw_pointer_cast(l3_delta.data()),
+					opts.beta);
+			cudaDeviceSynchronize(); 
 
-		numBlocks = (opts.n_h1 * opts.n_x + blockSize - 1) / blockSize;
-		printf("V1 before:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << v_w1[i] << " ";
-		std::cout << std::endl;
-		cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_h1 * opts.n_x,
-				thrust::raw_pointer_cast(v_w1.data()),
-				thrust::raw_pointer_cast(l1_delta.data()),
-				opts.beta);
-		cudaDeviceSynchronize(); 
-		printf("V1 after:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << v_w1[i] << " ";
-		std::cout << std::endl;
+			numBlocks = (opts.n_h2 * opts.n_h1 + blockSize - 1) / blockSize;
+			cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_h2 * opts.n_h1, 
+					thrust::raw_pointer_cast(v_w2.data()),
+					thrust::raw_pointer_cast(l2_delta.data()),
+					opts.beta);
+			cudaDeviceSynchronize(); 
 
-		//Update weights
-		numBlocks = (opts.n_o * opts.n_h2 + blockSize - 1) / blockSize;
-		printf("W3 before:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << w3[i] << " ";
-		std::cout << std::endl;
-		cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_o * opts.n_h2, 
-				thrust::raw_pointer_cast(w3.data()),
-				thrust::raw_pointer_cast(v_w3.data()),
-				opts.alpha);
-		cudaDeviceSynchronize(); 
-		printf("W3 after:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << w3[i] << " ";
-		std::cout << std::endl;
+			numBlocks = (opts.n_h1 * opts.n_x + blockSize - 1) / blockSize;
+			cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_h1 * opts.n_x,
+					thrust::raw_pointer_cast(v_w1.data()),
+					thrust::raw_pointer_cast(l1_delta.data()),
+					opts.beta);
+			cudaDeviceSynchronize(); 
 
-		numBlocks = (opts.n_h2 * opts.n_h1 + blockSize - 1) / blockSize;
-		printf("W2 before:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << w2[i] << " ";
-		std::cout << std::endl;
-		cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_h2 * opts.n_h1, 
-				thrust::raw_pointer_cast(w2.data()),
-				thrust::raw_pointer_cast(v_w2.data()),
-				opts.alpha);
-		cudaDeviceSynchronize(); 
-		printf("W2 after:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << w2[i] << " ";
-		std::cout << std::endl;
+			//Update weights
+			numBlocks = (opts.n_o * opts.n_h2 + blockSize - 1) / blockSize;
+			cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_o * opts.n_h2, 
+					thrust::raw_pointer_cast(w3.data()),
+					thrust::raw_pointer_cast(v_w3.data()),
+					opts.alpha);
+			cudaDeviceSynchronize(); 
 
-		numBlocks = (opts.n_h1 * opts.n_x + blockSize - 1) / blockSize;
-		printf("W1 before:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << w1[i] << " ";
-		std::cout << std::endl;
-		cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_h1 * opts.n_x, 
-				thrust::raw_pointer_cast(w1.data()),
-				thrust::raw_pointer_cast(v_w1.data()),
-				opts.alpha);
-		cudaDeviceSynchronize(); 
-		printf("W1 after:\t");
-		for (int i = 0; i < 10; i++)
-			std::cout << w1[i] << " ";
-		std::cout << std::endl;
+			numBlocks = (opts.n_h2 * opts.n_h1 + blockSize - 1) / blockSize;
+			cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_h2 * opts.n_h1, 
+					thrust::raw_pointer_cast(w2.data()),
+					thrust::raw_pointer_cast(v_w2.data()),
+					opts.alpha);
+			cudaDeviceSynchronize(); 
+
+			numBlocks = (opts.n_h1 * opts.n_x + blockSize - 1) / blockSize;
+			cuda_update_weight<<<numBlocks, blockSize>>>(opts.n_h1 * opts.n_x, 
+					thrust::raw_pointer_cast(w1.data()),
+					thrust::raw_pointer_cast(v_w1.data()),
+					opts.alpha);
+			cudaDeviceSynchronize(); 
+		}
+		//Feed forward test set
+		feed_forward(test_in);
 		printf("%d:\tError:%f\tAccuracy:%f\n", i, model_error, get_accuracy());
 		std::cout << std::endl;
+		opts.alpha *= (1 / (1 + opts.decay * i));
 	}
 	end = clock();
 	cublasDestroy(h);
@@ -369,7 +362,7 @@ thrust::device_vector<float> neural_net::init_weight(int insize, int outsize)
 
 
 
-void neural_net::feed_forward()
+void neural_net::feed_forward(thrust::device_vector<float> in)
 {
 
 	//Using thrust transform with struct doesn't work for large vectors. Need to use cublas GEMM (general matrix multiply) algorithms.
@@ -377,8 +370,8 @@ void neural_net::feed_forward()
 	int blockSize = 256;
 	
 	//Dot product of inputs and w1
-	int n = inputs.size() / opts.n_x, m = opts.n_x, r = opts.n_h1; //inputs is 70000x784 (NxM), w1 is 784x600 (MxR),
-	auto a1 = matrix_multiply(inputs, w1, n, m, m, r, NORMAL);
+	int n = in.size() / opts.n_x, m = opts.n_x, r = opts.n_h1; //inputs is 70000x784 (NxM), w1 is 784x600 (MxR),
+	auto a1 = matrix_multiply(in, w1, n, m, m, r, NORMAL);
 	cudaDeviceSynchronize(); 
 	
 	//Add bias
@@ -439,7 +432,7 @@ void neural_net::feed_forward()
 	//Do softmax
 	softmax_cuda<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l3.data()), thrust::raw_pointer_cast(exp_sums.data()), opts.n_o);
 	cudaDeviceSynchronize(); 
-	
+	/*
 	printf("Outputs are: \n");
 	printf("L3:\t");
 	for (int i = 0; i < 10; i++)
@@ -466,6 +459,7 @@ void neural_net::feed_forward()
 		std::cout << a1[i] << " ";
 	std::cout << std::endl;
 	std::cout << std::endl;
+	*/
 }
 
 thrust::device_vector<float> neural_net::clip(thrust::device_vector<float> in, int max_power_val)
@@ -490,6 +484,7 @@ void neural_net::back_propagation()
 {	
 	model_error = get_error();
 	thrust::device_vector<float> error_gradient = get_error_gradient();
+
 	int n = inputs.size() / opts.n_x, m = opts.n_h2, r = opts.n_o;
 	int blockSize = 256;	
 	
@@ -590,6 +585,7 @@ void neural_net::back_propagation()
 	cudaDeviceSynchronize(); 
 	
 	//printf("Size is %d, %d\n", l1_delta.size(), l1_bias_delta.size());
+	/*
 	printf("Deltas are: \n");
 	printf("L3:\t");
 	for (int i = 0; i < 11; i++)
@@ -668,6 +664,7 @@ void neural_net::back_propagation()
 	position = iter - l1_delta.begin();
 	max = *iter;
 	printf("L1D: %f, %d\n", max, position);
+	*/
 }
 
 
@@ -676,15 +673,13 @@ double neural_net::get_error()
 	int n = labels.size();
 	int blockSize = 256;
 	int numBlocks = (n + blockSize - 1) / blockSize;
-	
-	thrust::device_vector<double> error_sums(labels.size(), 0);
+	thrust::device_vector<double> error_sums(n, 0);
 	cuda_get_error<<<numBlocks, blockSize>>>(n,
 			thrust::raw_pointer_cast(l3.data()), 
 			thrust::raw_pointer_cast(labels.data()), 
 			thrust::raw_pointer_cast(error_sums.data()), 
 			opts.n_o);
-	
-	cudaDeviceSynchronize(); 
+	cudaDeviceSynchronize();
 	return thrust::reduce(error_sums.begin(), error_sums.end(), 0.0, thrust::plus<double>());
 }
 
@@ -694,7 +689,6 @@ thrust::device_vector<float> neural_net::get_error_gradient()
 	int n = l3.size();
 	int blockSize = 256;
 	int numBlocks = (n + blockSize - 1) / blockSize;
-	printf("N: %d, numBlocks: %d\n", n, numBlocks);
 	auto error_gradient = l3;
 	cuda_get_error_gradient<<<numBlocks, blockSize>>>(n,
 			thrust::raw_pointer_cast(labels.data()), 
@@ -702,18 +696,6 @@ thrust::device_vector<float> neural_net::get_error_gradient()
 			opts.n_o);
 	
 	cudaDeviceSynchronize(); 
-	printf("First 10 rows of EG\n");
-	for (int i = 0; i < 100; i++)
-	{
-		if (i % 10 == 0)
-			std::cout << std::endl;
-		std:: cout << error_gradient[i] << " ";
-	}	
-	std::cout << std::endl;
-	printf("First 10 labels\n");
-	for (int i = 0; i < 100; i++)
-		std:: cout << labels[i] << " ";
-	std::cout << std::endl;
 	return error_gradient;
 }
 
@@ -741,45 +723,14 @@ double neural_net::get_accuracy()
 	thrust::device_vector<float> indices(nRows);
 	thrust::transform(row_argmaxes.begin(), row_argmaxes.end(), indices.begin(), GetIndices(opts.n_o));
 
-	printf("First 10 choices:\n");
-	for (int i = 0; i < 10; i++)
-	{
-		argMaxType tmp=row_argmaxes[i];
-		std::cout << thrust::get<0>(tmp) << " ";
-	}
-	std::cout << std::endl;
-	printf("First 5 rows L3\n");
-	for (int i = 0; i < 50; i++)
-	{
-		if (i % 10 == 0)
-			std::cout << std::endl;
-		std::cout << l3[i] << " ";
-	}
-	std::cout << std::endl;	
-	printf("First 5 rowsL2\n");
-	for (int i = 0; i < 50; i++)
-	{
-		if (i % 10 == 0)
-			std::cout << std::endl;
-		std::cout << l2[i] << " ";
-	}
-	std::cout << std::endl;
-	printf("First 5 rowsL1\n");
-	for (int i = 0; i < 50; i++)
-	{
-		if (i % 10 == 0)
-			std::cout << std::endl;
-		std::cout << l1[i] << " ";
-	}
-	std::cout << std::endl;
 	//Get accuracy	
 	int blockSize = 256;
 	int numBlocks = (nRows + blockSize - 1) / blockSize;
 	
-	thrust::device_vector<int> accuracies(labels.size(), 0);
+	thrust::device_vector<int> accuracies(test_labels.size(), 0);
 	cuda_get_accuracy<<<numBlocks, blockSize>>>(nRows,
 			thrust::raw_pointer_cast(indices.data()), 
-			thrust::raw_pointer_cast(labels.data()), 
+			thrust::raw_pointer_cast(test_labels.data()), 
 			thrust::raw_pointer_cast(accuracies.data())); 
 	cudaDeviceSynchronize(); 
 	
