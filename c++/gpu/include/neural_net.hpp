@@ -32,6 +32,8 @@ class neural_net
 		thrust::device_vector<float> labels;
 		thrust::device_vector<float> test_in;
 		thrust::device_vector<float> test_labels;
+		thrust::device_vector<float> batch_x;
+		thrust::device_vector<float> batch_y;
 		thrust::device_vector<float> l1;
 		thrust::device_vector<float> l2;
 		thrust::device_vector<float> l3;

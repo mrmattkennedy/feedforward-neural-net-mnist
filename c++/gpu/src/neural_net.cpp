@@ -262,18 +262,21 @@ void neural_net::train()
 	
 	int blockSize = 256;
 	int numBlocks = (opts.n_o * opts.n_h2 + blockSize - 1) / blockSize;
-	thrust::device_vector<float> batch_x(opts.batch_size);
-	thrust::device_vector<float> batch_y(opts.batch_size);
+	batch_x = thrust::device_vector<float>(opts.batch_size*opts.n_x);
+	batch_y = thrust::device_vector<float>(opts.batch_size);
 
 	for (int i = 0; i < opts.epochs; i++)
 	{
 		shuffle_and_flatten();
 		for (int j = 0; j < opts.batches; j++)
 		{
-			feed_forward(inputs);
+			thrust::copy(inputs.begin() + (j * (opts.batch_size*opts.n_x)), inputs.begin() + ((j+1) * (opts.batch_size*opts.n_x)), batch_x.begin());
+			thrust::copy(labels.begin() + (j * opts.batch_size), labels.begin() + ((j+1) * opts.batch_size), batch_y.begin());
+			feed_forward(batch_x);
 			back_propagation();
 
 			//Update velocities
+			numBlocks = (opts.n_o * opts.n_h2 + blockSize - 1) / blockSize;
 			cuda_update_velocity<<<numBlocks, blockSize>>>(opts.n_o * opts.n_h2, 
 					thrust::raw_pointer_cast(v_w3.data()),
 					thrust::raw_pointer_cast(l3_delta.data()),
@@ -432,34 +435,6 @@ void neural_net::feed_forward(thrust::device_vector<float> in)
 	//Do softmax
 	softmax_cuda<<<numBlocks, blockSize>>>(n*r, thrust::raw_pointer_cast(l3.data()), thrust::raw_pointer_cast(exp_sums.data()), opts.n_o);
 	cudaDeviceSynchronize(); 
-	/*
-	printf("Outputs are: \n");
-	printf("L3:\t");
-	for (int i = 0; i < 10; i++)
-		std::cout << l3[i] << " ";
-	std::cout << std::endl;
-	printf("A3:\t");
-	for (int i = 0; i < 10; i++)
-		std::cout << a3[i] << " ";
-	std::cout << std::endl;
-	printf("L2:\t");
-	for (int i = 0; i < 10; i++)
-		std::cout << l2[i] << " ";
-	std::cout << std::endl;
-	printf("A2:\t");
-	for (int i = 0; i < 10; i++)
-		std::cout << a2[i] << " ";
-	std::cout << std::endl;
-	printf("L1:\t");
-	for (int i = 0; i < 10; i++)
-		std::cout << l1[i] << " ";
-	std::cout << std::endl;
-	printf("A1:\t");
-	for (int i = 0; i < 10; i++)
-		std::cout << a1[i] << " ";
-	std::cout << std::endl;
-	std::cout << std::endl;
-	*/
 }
 
 thrust::device_vector<float> neural_net::clip(thrust::device_vector<float> in, int max_power_val)
@@ -667,16 +642,15 @@ void neural_net::back_propagation()
 	*/
 }
 
-
 double neural_net::get_error()
 {
-	int n = labels.size();
+	int n = batch_y.size();
 	int blockSize = 256;
 	int numBlocks = (n + blockSize - 1) / blockSize;
 	thrust::device_vector<double> error_sums(n, 0);
 	cuda_get_error<<<numBlocks, blockSize>>>(n,
 			thrust::raw_pointer_cast(l3.data()), 
-			thrust::raw_pointer_cast(labels.data()), 
+			thrust::raw_pointer_cast(batch_y.data()), 
 			thrust::raw_pointer_cast(error_sums.data()), 
 			opts.n_o);
 	cudaDeviceSynchronize();
@@ -691,7 +665,7 @@ thrust::device_vector<float> neural_net::get_error_gradient()
 	int numBlocks = (n + blockSize - 1) / blockSize;
 	auto error_gradient = l3;
 	cuda_get_error_gradient<<<numBlocks, blockSize>>>(n,
-			thrust::raw_pointer_cast(labels.data()), 
+			thrust::raw_pointer_cast(batch_y.data()), 
 			thrust::raw_pointer_cast(error_gradient.data()), 
 			opts.n_o);
 	
