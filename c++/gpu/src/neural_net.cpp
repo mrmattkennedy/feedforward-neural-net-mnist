@@ -6,6 +6,8 @@
 #include <thrust/reduce.h>
 #include <thrust/generate.h>
 #include <thrust/random.h>
+#include <thrust/random/normal_distribution.h>
+#include <thrust/random/linear_congruential_engine.h>
 #include <thrust/transform.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -34,15 +36,20 @@
 struct RandGen
 {
 	//N is size of vector, M is iteration
-	unsigned int N;
-	RandGen(unsigned int _N) : N(_N) {};
+	unsigned int N, seed;
 
-	__device__ float operator () (unsigned int thread_id)
+	__host__ __device__
+	RandGen(unsigned int _N, unsigned int _seed) : N(_N), seed(_seed) {};
+
+	
+	__host__ __device__
+	float operator () (unsigned int thread_id)
 	{
-		thrust::default_random_engine randEng;
-		randEng.discard(N * thread_id);
-		thrust::uniform_real_distribution<float> uniDist(-0.2, 0.2);
-		return uniDist(randEng);
+		thrust::minstd_rand rng;
+		rng.seed(seed);
+		rng.discard(N * thread_id);
+		thrust::random::normal_distribution<float> dist(0, 1);
+		return dist(rng);
 	}
 };
 
@@ -89,6 +96,23 @@ struct GetIndices
 };
 
 
+__global__ 
+void cuda_shuffle_x(int n, int *shuffled_idx, float *inputs, float *shuffled_x, int n_x)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		shuffled_x[i] = inputs[(shuffled_idx[i / n_x] * n_x) + (i % n_x)];
+}
+
+__global__ 
+void cuda_shuffle_y(int n, int *shuffled_idx, float *labels, float *shuffled_y)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		shuffled_y[i] = labels[shuffled_idx[i]];
+}
 
 __global__ 
 void cuda_add_bias(int n, float *x, float *bias, int n_x)
@@ -105,7 +129,7 @@ void sigmoid_cuda(int n, float *x)
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x;
 	for (int i = index; i < n; i += stride)
-		x[i] = 1 / (1 + exp(-x[i]));
+		x[i] = 1 / (1 + __expf(-x[i]));
 }
 
 __global__ 
@@ -123,7 +147,7 @@ void cuda_get_exp(int n, float *x)
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x;
 	for (int i = index; i < n; i += stride)
-		x[i] = exp(x[i]);
+		x[i] = __expf(x[i]);
 }
 
 
@@ -143,7 +167,7 @@ void cuda_get_error(int n, float *outputs, float *labels, double *sums, int n_o)
 	int stride = blockDim.x * gridDim.x;
 	for (int i = index; i < n; i += stride)
 	{
-		sums[i] = -log(outputs[(i*n_o) + (int)labels[i]] + 1e-10);
+		sums[i] = -__logf(outputs[(i*n_o) + (int)labels[i]] + 1e-10);
 	}
 }
 
@@ -215,7 +239,7 @@ neural_net::~neural_net()
 	//empty
 }
 
-void neural_net::shuffle_and_flatten()
+void neural_net::shuffle()
 {
 	//Initialize shuffled vector of ints with range 0 to size of data
 	int train_size = 60000;
@@ -227,22 +251,36 @@ void neural_net::shuffle_and_flatten()
 	srand(unsigned(time(NULL)));
 	std::random_shuffle(shuffle_vec.begin(), shuffle_vec.end());
 	
-	//Iterate and assign new shuffled data
-	std::vector<float> flattened;
-	std::vector<float> shuffled_labels(data_size);
-	for (int i = 0; i < data_size; i++)
-	{
-		//flatten.insert(flatten.end(), data.m_images[shuffle_vec[i]].begin(), data.m_images[shuffle_vec[i]].end());
-		std::copy(data.m_images[shuffle_vec[i]].begin(), data.m_images[shuffle_vec[i]].end(), std::back_inserter(flattened));
-		shuffled_labels[i] = data.m_labels[shuffle_vec[i]];
-	}
+	//Iterate and assign new shuffled data using cuda
+	thrust::device_vector<float> x = data.m_images;
+	thrust::device_vector<float> y = data.m_labels;
+	thrust::device_vector<int> shuffle_idx = shuffle_vec;
+	thrust::device_vector<float> shuffled_x(data.m_images.size(), 1);
+	thrust::device_vector<float> shuffled_y(data.m_labels.size(), 1);
 	
-	//Assign new data
-	thrust::copy(flattened.begin(), flattened.begin() + (train_size*opts.n_x), inputs.begin());
-	thrust::copy(shuffled_labels.begin(), shuffled_labels.begin() + train_size, labels.begin());
+	int blockSize = 256;
+	int numBlocks = (shuffled_x.size() + blockSize - 1) / blockSize;
+	
+	cuda_shuffle_x<<<numBlocks, blockSize>>>(shuffled_x.size(), 
+			thrust::raw_pointer_cast(shuffle_idx.data()),
+			thrust::raw_pointer_cast(x.data()),
+			thrust::raw_pointer_cast(shuffled_x.data()),
+			opts.n_x);
+	cudaDeviceSynchronize(); 
 
-	thrust::copy(flattened.begin() + (train_size*opts.n_x), flattened.end(), test_in.begin());
-	thrust::copy(shuffled_labels.begin() + train_size, shuffled_labels.end(), test_labels.begin());
+	numBlocks = (shuffled_y.size() + blockSize - 1) / blockSize;
+	cuda_shuffle_y<<<numBlocks, blockSize>>>(shuffled_y.size(), 
+			thrust::raw_pointer_cast(shuffle_idx.data()),
+			thrust::raw_pointer_cast(y.data()),
+			thrust::raw_pointer_cast(shuffled_y.data()));
+	cudaDeviceSynchronize(); 
+
+	//Assign new data
+	thrust::copy(shuffled_x.begin(), shuffled_x.begin() + (train_size*opts.n_x), inputs.begin());
+	thrust::copy(shuffled_y.begin(), shuffled_y.begin() + train_size, labels.begin());
+
+	thrust::copy(shuffled_x.begin() + (train_size*opts.n_x), shuffled_x.end(), test_in.begin());
+	thrust::copy(shuffled_y.begin() + train_size, shuffled_y.end(), test_labels.begin());	
 }
 
 void neural_net::train()
@@ -267,11 +305,25 @@ void neural_net::train()
 
 	for (int i = 0; i < opts.epochs; i++)
 	{
-		shuffle_and_flatten();
+		/*
+		for (int i = 0; i < 784; i++)
+		{
+			if (i % 28 == 0)
+				std::cout << std::endl;
+			
+			//std::cout << inputs[i] << " ";
+			printf("%3.f", (float)inputs[i]);
+		}
+		std::cout << std::endl;
+		*/
+		shuffle();
+		opts.alpha *= (1 / (1 + opts.decay * i));
 		for (int j = 0; j < opts.batches; j++)
 		{
+			//printf("Range: %d to %d, %d to %d\n", j * (opts.batch_size*opts.n_x), ((j+1) * opts.batch_size*opts.n_x), j * opts.batch_size, (j+1) * opts.batch_size);
 			thrust::copy(inputs.begin() + (j * (opts.batch_size*opts.n_x)), inputs.begin() + ((j+1) * (opts.batch_size*opts.n_x)), batch_x.begin());
 			thrust::copy(labels.begin() + (j * opts.batch_size), labels.begin() + ((j+1) * opts.batch_size), batch_y.begin());
+			
 			feed_forward(batch_x);
 			back_propagation();
 
@@ -321,9 +373,7 @@ void neural_net::train()
 		}
 		//Feed forward test set
 		feed_forward(test_in);
-		printf("%d:\tError:%f\tAccuracy:%f\n", i, model_error, get_accuracy());
-		std::cout << std::endl;
-		opts.alpha *= (1 / (1 + opts.decay * i));
+		printf("%d:\tError:%f\tTest acc:%f\n", i, model_error, get_accuracy());
 	}
 	end = clock();
 	cublasDestroy(h);
@@ -353,14 +403,16 @@ void neural_net::create_arch()
 thrust::device_vector<float> neural_net::init_weight(int insize, int outsize)
 {
 
-	thrust::device_vector<float> d_vec(insize * outsize);
+	thrust::device_vector<float> w(insize * outsize);
 	thrust::transform(
 		thrust::counting_iterator<int>(0),
 		thrust::counting_iterator<int>(insize * outsize),
-		d_vec.begin(),
-		RandGen(insize * outsize));
+		w.begin(),
+		RandGen(insize * outsize, (unsigned(time(NULL)))));
 
-	return d_vec;
+	float factor = sqrt(1.0 / insize);
+	thrust::for_each(w.begin(), w.end(), thrust::placeholders::_1 *= factor);
+	return w;
 }
 
 
@@ -458,9 +510,9 @@ thrust::device_vector<float> neural_net::clip(thrust::device_vector<float> in, i
 void neural_net::back_propagation()
 {	
 	model_error = get_error();
-	thrust::device_vector<float> error_gradient = get_error_gradient();
+	auto error_gradient = get_error_gradient();
 
-	int n = inputs.size() / opts.n_x, m = opts.n_h2, r = opts.n_o;
+	int n = batch_x.size() / opts.n_x, m = opts.n_h2, r = opts.n_o;
 	int blockSize = 256;	
 	
 	//Output layer
@@ -705,6 +757,48 @@ double neural_net::get_accuracy()
 	cuda_get_accuracy<<<numBlocks, blockSize>>>(nRows,
 			thrust::raw_pointer_cast(indices.data()), 
 			thrust::raw_pointer_cast(test_labels.data()), 
+			thrust::raw_pointer_cast(accuracies.data())); 
+	cudaDeviceSynchronize(); 
+	
+	//Reduce and divide
+	float total = thrust::reduce(thrust::device, accuracies.begin(), accuracies.end());
+	return total / nRows;
+}
+
+double neural_net:: get_train_accuracy()
+{
+	feed_forward(inputs);
+
+	//Get sizes for indexing
+	int nRows = l3.size() / opts.n_o;
+	int nColumns = opts.n_o;
+	
+	//Allocate vectors for vector of tuples and counting index for each row
+	thrust::device_vector<argMaxType> row_argmaxes(nRows);
+	thrust::device_vector<int> row_indices(nRows);
+	
+	//Get vector of tuples of max and max position for each row
+	thrust::reduce_by_key
+		(thrust::make_transform_iterator(thrust::counting_iterator<int>(0), linear_index_to_row_index<int>(nColumns)),
+		thrust::make_transform_iterator(thrust::counting_iterator<int>(0), linear_index_to_row_index<int>(nColumns)) + (nRows*nColumns),
+		thrust::make_zip_iterator(thrust::make_tuple(thrust::counting_iterator<int>(0),l3.begin())),
+		row_indices.begin(),
+		row_argmaxes.begin(),
+		thrust::equal_to<int>(),
+		argMax());
+	
+	//Get just the indices from the vector of max tuples for each row
+	thrust::device_vector<float> indices(nRows);
+	thrust::transform(row_argmaxes.begin(), row_argmaxes.end(), indices.begin(), GetIndices(opts.n_o));
+
+	//Get accuracy	
+	int blockSize = 256;
+	int numBlocks = (nRows + blockSize - 1) / blockSize;
+	
+	thrust::device_vector<int> accuracies(labels.size(), 0);
+	cuda_get_accuracy<<<numBlocks, blockSize>>>(nRows,
+			thrust::raw_pointer_cast(indices.data()), 
+			thrust::raw_pointer_cast(labels.data()), 
 			thrust::raw_pointer_cast(accuracies.data())); 
 	cudaDeviceSynchronize(); 
 	

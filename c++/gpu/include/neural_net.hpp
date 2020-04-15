@@ -55,7 +55,7 @@ class neural_net
 		neural_net(std::string base_path);
 		~neural_net();
 		
-		void shuffle_and_flatten();
+		void shuffle();
 		void train();
 		void create_arch();
 		thrust::device_vector<float> neural_net::init_weight(int insize, int outsize);
@@ -65,6 +65,7 @@ class neural_net
 		double get_error();
 		thrust::device_vector<float> get_error_gradient();
 		double get_accuracy();
+		double get_train_accuracy();
 		thrust::device_vector<float> matrix_multiply(thrust::device_vector<float> A, thrust::device_vector<float> B, int a_rows, int a_cols, int b_rows, int b_cols, int op);
 };
 #endif
