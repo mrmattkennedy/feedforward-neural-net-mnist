@@ -228,6 +228,14 @@ void cuda_get_accuracy(int n, float *outputs, float *labels, int *accuracy)
 			accuracy[i] = 1;
 }
 
+__global__ 
+void cuda_get_conf(int n, float *outputs, float *labels, int *conf, int n_o)
+{
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i += stride)
+		atomicAdd(&conf[((int)outputs[i] * n_o) + (int)labels[i]], 1);
+}
 
 neural_net::neural_net(std::string path) : data(path) 
 {
@@ -249,7 +257,7 @@ void neural_net::shuffle()
 	std::vector<int> shuffle_vec(data_size);
 	std::iota(std::begin(shuffle_vec), std::end(shuffle_vec), 0);
 	srand(unsigned(time(NULL)));
-	std::random_shuffle(shuffle_vec.begin(), shuffle_vec.end());
+	//std::random_shuffle(shuffle_vec.begin(), shuffle_vec.end());
 	
 	//Iterate and assign new shuffled data using cuda
 	thrust::device_vector<float> x = data.m_images;
@@ -303,20 +311,22 @@ void neural_net::train()
 	batch_x = thrust::device_vector<float>(opts.batch_size*opts.n_x);
 	batch_y = thrust::device_vector<float>(opts.batch_size);
 
+	shuffle();
 	for (int i = 0; i < opts.epochs; i++)
 	{
-		/*
+		
 		for (int i = 0; i < 784; i++)
 		{
+			/*
 			if (i % 28 == 0)
 				std::cout << std::endl;
 			
 			//std::cout << inputs[i] << " ";
 			printf("%3.f", (float)inputs[i]);
+			*/
 		}
 		std::cout << std::endl;
-		*/
-		shuffle();
+		
 		opts.alpha *= (1 / (1 + opts.decay * i));
 		for (int j = 0; j < opts.batches; j++)
 		{
@@ -373,7 +383,8 @@ void neural_net::train()
 		}
 		//Feed forward test set
 		feed_forward(test_in);
-		printf("%d:\tError:%f\tTest acc:%f\n", i, model_error, get_accuracy());
+		//printf("%d:\tError:%f\tTest acc:%f\n", i, model_error, get_accuracy());
+		printf("%d:\tError:%f\tTrain acc:%f\tTest acc:%f\n", i, model_error, get_train_accuracy(), get_accuracy());
 	}
 	end = clock();
 	cublasDestroy(h);
@@ -609,89 +620,7 @@ void neural_net::back_propagation()
 	cudaDeviceSynchronize(); 
 	//Divide after - significantly less divide operations this way
 	thrust::for_each(l1_bias_delta.begin(), l1_bias_delta.end(), thrust::placeholders::_1 /= n);
-	cudaDeviceSynchronize(); 
-	
-	//printf("Size is %d, %d\n", l1_delta.size(), l1_bias_delta.size());
-	/*
-	printf("Deltas are: \n");
-	printf("L3:\t");
-	for (int i = 0; i < 11; i++)
-		std::cout << l3_delta[i] << " ";
-	std::cout << std::endl;
-	printf("L3B:\t");
-	for (int i = 0; i < 10; i++)
-		std::cout << l3_bias_delta[i] << " ";
-	std::cout << std::endl;
-	printf("L2:\t");
-	for (int i = 0; i < 11; i++)
-		std::cout << l2_delta[i] << " ";
-	std::cout << std::endl;
-	printf("L2B:\t");
-	for (int i = 0; i < 11; i++)
-		std::cout << l2_bias_delta[i] << " ";
-	std::cout << std::endl;
-	printf("L1:\t");
-	for (int i = 0; i < 11; i++)
-		std::cout << l1_delta[i] << " ";
-	std::cout << std::endl;
-	printf("L1B:\t");
-	for (int i = 0; i < 11; i++)
-		std::cout << l1_bias_delta[i] << " ";
-	std::cout << std::endl;
-	printf("\nMaxes:\n");
-	thrust::device_vector<float>::iterator iter = thrust::max_element(error_gradient.begin(), error_gradient.end());
-	unsigned int position = iter - error_gradient.begin();
-	float max = *iter;
-	printf("EG: %f, %d\n", max, position);
-	iter = thrust::max_element(l3_delta.begin(), l3_delta.end());
-	position = iter - l3_delta.begin();
-	max = *iter;
-	printf("L3D: %f, %d\n", max, position);
-	iter = thrust::max_element(l3.begin(), l3.end());
-	position = iter - l3.begin();
-	max = *iter;
-	printf("L3: %f, %d\n", max, position);
-	iter = thrust::max_element(l2_out_error.begin(), l2_out_error.end());
-	position = iter - l2_out_error.begin();
-	max = *iter;
-	printf("L2O: %f, %d\n", max, position);
-	iter = thrust::max_element(l2.begin(), l2.end());
-	position = iter - l2.begin();
-	max = *iter;
-	printf("L2: %f, %d\n", max, position);
-	iter = thrust::max_element(l2_sigmoid_prime.begin(), l2_sigmoid_prime.end());
-	position = iter - l2_sigmoid_prime.begin();
-	max = *iter;
-	printf("L2S: %f, %d\n", max, position);
-	iter = thrust::max_element(l2_error.begin(), l2_error.end());
-	position = iter - l2_error.begin();
-	max = *iter;
-	printf("L2E: %f, %d\n", max, position);
-	iter = thrust::max_element(l2_delta.begin(), l2_delta.end());
-	position = iter - l2_delta.begin();
-	max = *iter;
-	printf("L2D: %f, %d\n", max, position);
-	iter = thrust::max_element(l1_out_error.begin(), l1_out_error.end());
-	position = iter - l2_delta.begin();
-	max = *iter;
-	printf("L1O: %f, %d\n", max, position);
-	iter = thrust::max_element(l1.begin(), l1.end());
-	position = iter - l1.begin();
-	max = *iter;
-	printf("L1: %f, %d\n", max, position);
-	iter = thrust::max_element(l1_sigmoid_prime.begin(), l1_sigmoid_prime.end());
-	position = iter - l1_sigmoid_prime.begin();
-	max = *iter;
-	printf("L1S: %f, %d\n", max, position);
-	iter = thrust::max_element(l1_error.begin(), l1_error.end());
-	position = iter - l1_error.begin();
-	max = *iter;
-	printf("L1E: %f, %d\n", max, position);
-	iter = thrust::max_element(l1_delta.begin(), l1_delta.end());
-	position = iter - l1_delta.begin();
-	max = *iter;
-	printf("L1D: %f, %d\n", max, position);
-	*/
+	cudaDeviceSynchronize(); 	
 }
 
 double neural_net::get_error()
@@ -760,8 +689,38 @@ double neural_net::get_accuracy()
 			thrust::raw_pointer_cast(accuracies.data())); 
 	cudaDeviceSynchronize(); 
 	
+	thrust::device_vector<int> conf_mat(opts.n_o * opts.n_o, 0);
+	cuda_get_conf<<<numBlocks, blockSize>>>(nRows,
+			thrust::raw_pointer_cast(indices.data()), 
+			thrust::raw_pointer_cast(test_labels.data()), 
+			thrust::raw_pointer_cast(conf_mat.data()),
+			opts.n_o); 
+	cudaDeviceSynchronize(); 
+	printf("\nTest confusion matrix:\n");
+	printf("      ");
+	for (int i = 0; i < 10; i++)
+		printf("%4d ", i);
+	std::cout << std::endl;
+	for (int i = 0; i < conf_mat.size(); i++)
+	{
+		if (i % opts.n_o == 0)
+		{
+			std::cout << std::endl;
+			printf("%4d  ", i / opts.n_o);
+		}
+		//std::cout << conf_mat[i] << " ";
+		printf("%4d ", (int)conf_mat[i]);
+	}
+	std::cout << std::endl;
 	//Reduce and divide
 	float total = thrust::reduce(thrust::device, accuracies.begin(), accuracies.end());
+	/*
+	printf("First 20 test predicts and accuracies:\n");
+	for (int i = 0; i < 20; i++)
+		std::cout << indices[i] << ":" << test_labels[i] << " ";
+	std::cout << std::endl;
+	printf("Test total is %f\n", total);
+	*/
 	return total / nRows;
 }
 
@@ -801,9 +760,44 @@ double neural_net:: get_train_accuracy()
 			thrust::raw_pointer_cast(labels.data()), 
 			thrust::raw_pointer_cast(accuracies.data())); 
 	cudaDeviceSynchronize(); 
+
+	thrust::device_vector<int> conf_mat(opts.n_o * opts.n_o, 0);
+	cuda_get_conf<<<numBlocks, blockSize>>>(nRows,
+			thrust::raw_pointer_cast(indices.data()), 
+			thrust::raw_pointer_cast(labels.data()), 
+			thrust::raw_pointer_cast(conf_mat.data()),
+			opts.n_o); 
+	cudaDeviceSynchronize(); 
 	
+	printf("\nTrain confusion matrix:\n");
+	printf("      ");
+	for (int i = 0; i < 10; i++)
+		printf("%4d ", i);
+	std::cout << std::endl;
+	for (int i = 0; i < conf_mat.size(); i++)
+	{
+		if (i % opts.n_o == 0)
+		{
+			std::cout << std::endl;
+			printf("%4d  ", i / opts.n_o);
+		}
+		//std::cout << conf_mat[i] << " ";
+		printf("%4d ", (int)conf_mat[i]);
+	}
+	std::cout << std::endl;
 	//Reduce and divide
 	float total = thrust::reduce(thrust::device, accuracies.begin(), accuracies.end());
+	/*
+	printf("First 20 train predicts and accuracies:\n");
+	for (int i = 0; i < 20; i++)
+		std::cout << indices[i] << ":" << labels[i] << " ";
+	std::cout << std::endl;
+	printf("Train total is %f\n", total);
+	printf("Output 3:\n");
+	for (int i = 0; i < 10; i++)
+		std::cout << l3[i] << " ";
+	std::cout << std::endl;
+	*/
 	return total / nRows;
 }
 
