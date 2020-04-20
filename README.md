@@ -1,4 +1,4 @@
-### Deep learning using the CPU and the GPU
+### Deep learning using CPU and GPU
 
 This was a study of many things - the ultimate focus was neural networks and their performance using the gpu vs the cpu. This was also a refresher of C++ for me. Python implementation seems to return better results, but C++ is faster. Future research focus would be hyperparameter optimization.
 
