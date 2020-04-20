@@ -34,7 +34,7 @@ int main(int argc, char** argv)
 		}
 	
 	//Save accuracy results
-	std::ofstream acc_file("..\\..\\results\\c++\\cpu_results.dat");
+	std::ofstream acc_file("..\\..\\results\\c++\\cpu_accuracy.dat");
 	for (auto &batch : accuracies)
 	{
 		for (auto &row : batch)

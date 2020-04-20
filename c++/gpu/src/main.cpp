@@ -34,7 +34,7 @@ int main(int argc, char** argv)
 		}
 	
 	//Save accuracy results
-	std::ofstream acc_file("..\\..\\results\\c++\\gpu_results.dat");
+	std::ofstream acc_file("..\\..\\results\\c++\\gpu_accuracy.dat");
 	for (auto &batch : accuracies)
 	{
 		for (auto &row : batch)
