@@ -9,7 +9,7 @@ For reference:
 * **P** is **P**ython
 * **C** is **C**++
 
-**
+
 ##### Tables
 The table below showcases the timing differences between Python CPU and GPU versions, C++ CPU and GPU versions, and CPU and GPU differences.
 ![Image of time table](results/figures/table_time.png)
