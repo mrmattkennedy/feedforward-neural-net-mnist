@@ -15,7 +15,7 @@ For reference:
 The table below showcases the timing differences between Python CPU and GPU versions, C++ CPU and GPU versions, and CPU and GPU differences.
 ![Image of time table](results/figures/table_time.png)
 
-The table below showcases the accuracy differences between Python CPU and GPU versions, C++ CPU and GPU versions, and CPU and GPU differences.
+The table below showcases the peak accuracy differences between Python CPU and GPU versions, C++ CPU and GPU versions, and CPU and GPU differences.
 ![Image of acc table](results/figures/table_acc.png)
 
 #### Timing plots
