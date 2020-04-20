@@ -12,18 +12,18 @@ For reference:
 **
 ##### Tables
 The table below showcases the timing differences between Python CPU and GPU versions, C++ CPU and GPU versions, and CPU and GPU differences.
-![Image of time table](https://github.com/mrmattkennedy/mnist-neural-network/blob/master/results/figures/table_time.png)
+![Image of time table](results/figures/table_time.png)
 
 The table below showcases the accuracy differences between Python CPU and GPU versions, C++ CPU and GPU versions, and CPU and GPU differences.
-![Image of acc table](hhttps://github.com/mrmattkennedy/mnist-neural-network/blob/master/results/figures/table_acc.png)
+![Image of acc table](results/figures/table_acc.png)
 
 ##### Timing plots
 The timings were what I was most interested in, so I plotted them using the matplotlib library.
 Here's what the CPU and GPU timings look like compared visually at each batch size:
-![Image of time plot](https://github.com/mrmattkennedy/neural-network-library/blob/master/python/data/figures/times.png)
+![Image of time plot](/results/figures/times.png)
 
 And here's what the difference at each batch size looks like for batch sizes 1000 and under:
-![Image of lte1000 plot](https://github.com/mrmattkennedy/neural-network-library/blob/master/python/data/figures/times_lte1000.png)
+![Image of lte1000 plot](/results/figures/times_lte1000.png)
 
 
 Additionally, in [this folder](/results/figures), there are plots of how each network does for each batch size.
