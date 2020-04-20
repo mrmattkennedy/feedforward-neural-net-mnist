@@ -8,6 +8,7 @@ Architecture is 784 inputs with 2 hidden layers of sizes 600 and 500, respective
 For reference:
 * **P** is **P**ython
 * **C** is **C**++
+* All differences are CPU - GPU
 
 
 ##### Tables
