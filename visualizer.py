@@ -131,7 +131,7 @@ def create_tables(times, accuracies, batch_sizes):
         cell_text.append(['%1.3f' % x for x in data[row]])
     
     #Get rows and cols for table
-    columns = ('P CPU Acc (%)', 'P GPU Acc (%)', 'P Diff (%)', 'C CPU Acc (%)', 'C GPU Time (%)', 'C Diff (%)', 'CPU Diff (%)', 'GPU Diff (%)')
+    columns = ('P CPU Acc (%)', 'P GPU Acc (%)', 'P Diff (%)', 'C CPU Acc (%)', 'C GPU Acc (%)', 'C Diff (%)', 'CPU Diff (%)', 'GPU Diff (%)')
 
     #Create table
     plt.clf()
