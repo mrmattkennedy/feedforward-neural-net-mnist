@@ -69,7 +69,6 @@ void data_reader::load_images(std::string data_path)
 		m_images.push_back(double_image);
 	}
 	
-	delete[] q;
 	ifs.close();
 }
 

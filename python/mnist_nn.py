@@ -310,7 +310,7 @@ def get_predictions(outputs, target):
 
 def save_results():
     train_size = 60000    
-    batch_sizes = [int(line.rstrip('\n')) for line in open('data/batch_sizes.data', 'r').readline().split(', ')]
+    batch_sizes = [int(line.rstrip('\n')) for line in open('..\\results\\batch_sizes.dat', 'r').readline().split(', ')]
     batch_sizes = [item for item in batch_sizes if item >= 30]
     
     times = {}
@@ -324,8 +324,8 @@ def save_results():
         times[size] = total_time
         accuracies[size] = results
 
-    cpu_times_path = 'data\\cpu_times.dat'
-    cpu_accuracy_path = 'data\\cpu_accuracy.dat'
+    cpu_times_path = '..\\results\\python\\cpu_times.dat'
+    cpu_accuracy_path = '..\\results\\python\\cpu_accuracy.dat'
 
     with open(cpu_times_path, 'w') as file:
         for key, value in times.items():

@@ -172,7 +172,6 @@ def train():
 
             #Get measurements
             outputs = feed_forward(X_train[:opts.batch_size], weights)
-            #pdb.set_trace()
             train_accuracy = accuracy(target=y_train[:opts.batch_size], predictions=(get_predictions(outputs, y_train[:opts.batch_size])))
             test_preds = predict(X_test, y_test, weights)
             test_accuracy = accuracy(target=y_test, predictions=test_preds)
@@ -189,7 +188,6 @@ def feed_forward(inputs, weights):
     #Empty return dict
     outputs = {}
 
-    pdb.set_trace()
     #Dot product of input value and weight
     z1 = linalg.dot(inputs, weights['W1']) + weights['b1']
 
@@ -368,8 +366,10 @@ def save_results():
     train()
     opts.epochs = 50
     
-    batch_sizes = [int(item.rstrip('\n')) for item in open('data/batch_sizes.data', 'r').readline().split(', ')]
+    batch_sizes = [int(item.rstrip('\n')) for item in open('..\\results\\batch_sizes.dat', 'r').readline().split(', ')]
     batch_sizes = [item for item in batch_sizes if item >= 30]
+    print(batch_sizes)
+    exit()
     
     times = {}
     accuracies = {}
@@ -382,8 +382,8 @@ def save_results():
         times[size] = total_time
         accuracies[size] = results
 
-    gpu_times_path = 'data\\gpu_times.dat'
-    gpu_accuracy_path = 'data\\gpu_accuracy.dat'
+    gpu_times_path = '..\\results\\python\\gpu_times.dat'
+    gpu_accuracy_path = '..\\results\\python\\gpu_accuracy.dat'
 
     with open(gpu_times_path, 'w') as file:
         for key, value in times.items():
@@ -399,4 +399,4 @@ def save_results():
             
 opts = init_params()
 if __name__ == '__main__':
-    train()
+    save_results()

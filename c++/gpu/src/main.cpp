@@ -9,7 +9,7 @@ int main(int argc, char** argv)
 	std::string base_path = "..\\..\\MNIST data\\";
 	neural_net nn(base_path);
 	//Read in batche sizes from file and remove spaces
-	std::ifstream batch_sizes("data\\batch_sizes.data");
+	std::ifstream batch_sizes("..\\..\\results\\batch_sizes.dat");
 	std::string line;
 	std::getline(batch_sizes, line);
 	line.erase(std::remove(line.begin(), line.end(), ' '), line.end()); 
@@ -34,7 +34,7 @@ int main(int argc, char** argv)
 		}
 	
 	//Save accuracy results
-	std::ofstream acc_file("data\\gpu_results.dat");
+	std::ofstream acc_file("..\\..\\results\\c++\\gpu_results.dat");
 	for (auto &batch : accuracies)
 	{
 		for (auto &row : batch)
@@ -44,7 +44,7 @@ int main(int argc, char** argv)
 	acc_file.close();
 
 	//Save time results
-	std::ofstream time_file("data\\gpu_times.dat");
+	std::ofstream time_file("..\\..\\results\\c++\\gpu_times.dat");
 	for (auto &time : times)
 		time_file << std::get<0>(time) << "," << std::get<1>(time)/1000.0f << std::endl;
 	time_file.close();

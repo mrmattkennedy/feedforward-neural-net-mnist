@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <vector>
+#include <tuple>
 #include <random>
 #include <functional>
 #include <algorithm>
@@ -18,21 +19,66 @@ neural_net::neural_net(std::string path) : data(path)
 
 neural_net::~neural_net()
 {
+	reset();
 	//empty
 }
 
-void neural_net::train()
+void neural_net::reset()
 {
-	create_arch();
+	try
+	{
+		opts.alpha = 0.002;
+		inputs.resize(0, 0);
+		reshaped_target.resize(0, 0);
+		w3.resize(0, 0);
+		b3.resize(0, 0);
+		w2.resize(0, 0);
+		b2.resize(0, 0);
+		w1.resize(0, 0);
+		b1.resize(0, 0);
+
+		v_w3.resize(0, 0);
+		v_b3.resize(0, 0);
+		v_w2.resize(0, 0);
+		v_b2.resize(0, 0);
+		v_w1.resize(0, 0);
+		v_b1.resize(0, 0);
+
+		l1.resize(0, 0);
+		l2.resize(0, 0);
+		l3.resize(0, 0);
+		
+		out_delta.resize(0, 0);
+                out_bias_delta.resize(0, 0);
+                hidden_2_delta.resize(0, 0);
+                hidden_2_bias_delta.resize(0, 0);
+                hidden_delta.resize(0, 0);
+                hidden_bias_delta.resize(0, 0);
+	}
+	catch (...)
+	{
+		std::cout << "Failed to reset" << std::endl;
+	}
+}
+
+std::tuple<std::tuple<int, __int64>, std::vector<std::tuple<int, float>>> neural_net::train(int batch_size)
+{
 	int train_size = 60000;
+	if (batch_size != 0)
+	{
+		opts.batch_size = batch_size;
+		opts.batches = train_size / batch_size;
+	}
+	printf("Batch size: %d\tBatches: %d\n", opts.batch_size, opts.batches);
+	create_arch();
 
 	std::vector<int> shuffle_vector(train_size);
 	std::iota(shuffle_vector.begin(), shuffle_vector.end(), 0);
 	inputs = Eigen::MatrixXd(opts.batch_size, data.rows() * data.cols());
 
-	clock_t start, end;
-	start = clock();
-
+	std::vector<std::tuple<int, float>> ret;
+	auto start = std::chrono::high_resolution_clock::now();	
+	
 	for (int i = 0; i < opts.epochs; i++)
 	{	
 		std::random_shuffle(shuffle_vector.begin(), shuffle_vector.end());
@@ -75,15 +121,18 @@ void neural_net::train()
 				test_target(i - train_size, data.m_labels[i]) = 1;
 			}
 			feed_forward(test_in);
-			printf("Epoch %5d\tloss: %5d\taccuracy: %4f\n", i, model_error, get_accuracy());
+			float acc = get_accuracy();
+			printf("Epoch %5d\tloss: %5d\taccuracy: %4f\n", i, model_error, acc);
+			ret.push_back(std::tuple<int, float>(opts.batch_size, acc));
 			test_in.resize(0, 0);
 			test_target.resize(0, 0);
 		}
 	}
-	end = clock();
-	double time_taken = double(end - start) / double(CLOCKS_PER_SEC);
-	printf("%f\n", time_taken);
-		
+	auto end = std::chrono::high_resolution_clock::now();
+	auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count();
+	std::tuple<int, __int64> timing(opts.batch_size, diff);
+	std::cout << "Took " << diff << " milliseconds\n";
+	return std::tuple<std::tuple<int, __int64>, std::vector<std::tuple<int, float>>>(timing, ret);	
 }
 
 void neural_net::create_arch()
@@ -113,6 +162,7 @@ void neural_net::feed_forward(Eigen::MatrixXd in)
 				return 1.0 / (1.0 + std::exp(-std::max(-500.0, std::min(x, 500.0))));
 	});
 	a1.resize(0, 0);
+
 	Eigen::MatrixXd a2;
 	a2.noalias() = (l1 * w2);
 	for (int i = 0; i < a2.rows(); i++)

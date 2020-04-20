@@ -46,7 +46,8 @@ class neural_net
 		neural_net(std::string base_path);
 		~neural_net();
 		
-		void train();
+		void reset();
+		std::tuple<std::tuple<int, __int64>, std::vector<std::tuple<int, float>>> train(int batch_size=0);
 		void create_arch();
 		void feed_forward(Eigen::MatrixXd in);
 		void back_propagation();
