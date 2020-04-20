@@ -11,14 +11,14 @@ For reference:
 * All differences are CPU - GPU
 
 
-##### Tables
+#### Tables
 The table below showcases the timing differences between Python CPU and GPU versions, C++ CPU and GPU versions, and CPU and GPU differences.
 ![Image of time table](results/figures/table_time.png)
 
 The table below showcases the accuracy differences between Python CPU and GPU versions, C++ CPU and GPU versions, and CPU and GPU differences.
 ![Image of acc table](results/figures/table_acc.png)
 
-##### Timing plots
+#### Timing plots
 The timings were what I was most interested in, so I plotted them using the matplotlib library.
 Here's what the CPU and GPU timings look like compared visually at each batch size:
 ![Image of time plot](/results/figures/times.png)
